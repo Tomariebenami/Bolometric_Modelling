@@ -1,0 +1,15 @@
+astropy @ file:///C:/ci/astropy_1617383630979/work
+astroquery==0.4.1
+corner==2.2.1
+dynesty @ file:///home/conda/feedstock_root/build_artifacts/dynesty_1617682557692/work
+emcee==3.1.0
+GitPython @ file:///tmp/build/80754af9/gitpython_1624609474443/work
+matplotlib @ file:///C:/ci/matplotlib-suite_1613408055530/work
+matplotlib-inline @ file:///tmp/build/80754af9/matplotlib-inline_1628242447089/work
+numpy @ file:///C:/ci/numpy_and_numpy_base_1626271903025/work
+numpydoc @ file:///tmp/build/80754af9/numpydoc_1605117425582/work
+pandas @ file:///C:/ci/pandas_1624383612827/work
+PyYAML==6.0
+scipy @ file:///C:/ci/scipy_1630606942584/work
+seaborn @ file:///tmp/build/80754af9/seaborn_1608578541026/work
+specutils @ file:///home/conda/feedstock_root/build_artifacts/specutils_1610061760447/work
