@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 import math as m
+import warnings
 
 from astropy.table import Table
 from matplotlib import pyplot as plt
@@ -188,10 +189,10 @@ def prep_scipy(bb_df, bin_num=2):
 def plot_temp(handle, data, label, c='k', marker='o', alpha=0.6, log=False, xlabel=True):
     
     if len(data) == 3:
-        print('scipy!')
+        #print('scipy!')
         error = data[2]
     elif len(data) == 4:
-        print('mcmc!')
+        #print('mcmc!')
         error = [data[2], data[3]]
     else:
         print('Data length Error')
@@ -410,50 +411,6 @@ def RDCSM_fit_mcmc(t, y, yerr, t_prior, n, delt, s=0, save_to='',
     if not owarnings:
         warnings.filterwarnings("ignore", category=RuntimeWarning)
     #----------------------------------------------------------------
-    #GLOBAL VARIABLES
-    
-    beta_f = { 0: {6: 1.256, 7: 1.181, 
-                   8: 1.154, 9: 1.140,
-                   10: 1.131, 12: 1.121,
-                   14: 1.116       
-                   },  # 1982 (Source 3)
-               2: {6: 1.377, 7: 1.299, 
-                   8: 1.267, 9: 1.250,
-                   10: 1.239, 12: 1.226,
-                   14: 1.218       
-                   }
-              }
-    
-    beta_r = {0: {6: 0.906, 7: 0.935,
-                 8: 0.950, 9: 0.960,
-                 10: 0.966, 12: 0.974,
-                 14: 0.979       
-                 }, # 1982 (Source 3)
-              2: {6: 0.958, 7: 0.970,
-                 8: 0.976, 9: 0.981,
-                 10: 0.984, 12: 0.987,
-                 14: 0.990       
-                 }
-              }
-    
-    A = {0: {6: 2.4, 7: 1.2,
-             8: 0.71, 9: 0.47,
-             10: 0.33, 12: 0.19,
-             14: 0.12      
-             }, # 1982 (Source 3)
-         2: {6: 0.62, 7: 27,
-             8: 0.15, 9: 0.096,
-             10: 0.067, 12: 0.038,
-             14: 0.025      
-             }
-         }
-    
-    e_co = 6.78e9
-    e_ni = 3.9e10 
-    t_ni = 8.77*3600*24    #decay time of Ni56(s) ref at asassn14
-    t_co = 111.3*3600*24   #decay time of Ni56(s) ref at asassn14
-    s_m = 1.989e33  #solar mass in grams
-    
     params = ['v_sn', 'm_ej', 'm_ni', 'm_csm', 'rho', 'r_in', 'e','x_0', 'k_o', 't_0']
     #-------------------------------------------------------------
     #Set up priors (full)
@@ -468,144 +425,12 @@ def RDCSM_fit_mcmc(t, y, yerr, t_prior, n, delt, s=0, save_to='',
     prihigh = priors[1] + t_prior[1]
     priors = (prilow, prihigh)
     
-    #---------------------------------------------------------------
-    #MODEL SETUP
-    
-    #See Eq. 4 in Liu - Checked
-    def q(rho, r_in):
-        return rho * (r_in ** s)
-    
-    #See Eq. 3 in Liu - Checked
-    def E_sn(m_ej, v_sn, x_0):
-        return (((3-delt)*(n-3)) / ((2*(5-delt)*(n-5)))) * m_ej * (x_0 * v_sn)**2
-    
-    #See Eq. 2 in Liu - Checked
-    def g(n, m_ej, v_sn, x_0):
-        return (1/(4*np.pi*(n-delt))) * ((2*(5-delt)*(n-5)*E_sn(m_ej, v_sn, x_0))**((n-3)/2)) / (((3-delt)*(n-3)*m_ej)**((n-5)/2))
-    
-    #t_interaction below Eq.14 Chatzopoulos - Checked
-    def t_i(v_sn, r_in):
-        return r_in / v_sn   
-    
-    #Reverse shock timescale (Eq. 16 Chatzopoulos) - Checked
-    def t_rs(v_sn, m_ej, r_in, rho, x_0):
-        
-        p1 = (v_sn) / (beta_r[s][n] * ((A[s][n] * g(n, m_ej, v_sn, x_0) / q(rho, r_in))**(1/(n-s))))
-        
-        p2 = 1 - ((3-n) * m_ej) / (4 * np.pi * v_sn**(3-n) * g(n, m_ej, v_sn, x_0))
-        
-        return (p1 * p2**(1/(3-n)))**((n-s) / (s-3))
-    
-    
-    """
-    r_out, and r_ph are found by calculating the integrals 16 and 17 in Liu.
-    I assume the star radius is much smaller compared to the CSM radius.
-    thus, m_th_csm is found using eq. 15.
-    
-    One should note that in Chatzopoulos eq. 15, m_csm refers to the optically
-    thick mass, and not the overall mass... (See Eq. 20 and 21, for explanation)
-    Thus, m_csm is calculated using the equations below:
-    """
-    
-    #Eq. 19 Chatzopoulos - Checked
-    def r_out(m_csm, r_in, rho):
-        if s == 0:
-            return (r_in**3 + (3*m_csm) / (4 *np.pi * rho))**(1/3)
-        elif s == 2:
-            return (m_csm / (4 * np.pi * q(rho, r_in))) + r_in
-    
-    #Eq. 18 Chatzopoulos - Checked
-    def r_ph(m_csm, r_in, rho, k_o):
-        if s == 0:
-            return r_out(m_csm, r_in, rho) + 2/(3 * k_o * q(rho, r_in))
-        elif s == 2:
-            return ((1/r_out(m_csm, r_in, rho)) - (2 / (3 * k_o * q(rho, r_in)))) ** (-1)
-            
-    #Eq. 17 Chatzopoulos - Checked
-    def m_th(m_csm, r_in, rho, k_o):
-        if s == 0:
-            return (4 * np.pi * q(rho, r_in) / 3) * ((r_ph(m_csm, r_in, rho, k_o)**3) - r_in**3)
-        elif s == 2:
-            return (4 * np.pi * q(rho, r_in)) * (r_ph(m_csm, r_in, rho, k_o) - r_in)
-        
-    
-    #Calculated Via liu Eq. 20 or/and below Eq. 20 Chatzopoulos - Checked
-    def t_d(m, r_in, rho, k_o):
-        beta = 4 * (np.pi**3) / 9
-        return (k_o * m) / (beta * cst.c*100 * r_ph(m, r_in, rho, k_o))
-    
-    #Forward shock timescale (Eq. 14 Liu) - Checked
-    def t_fs(v_sn, m_ej, m_csm, r_in, rho, k_o, x_0):
-    
-        inner = ((3-s) * q(rho, r_in)**((3-n)/(n - s)) * (A[s][n] * g(n, m_ej, v_sn, x_0))**((s-3)/(n-s))) / (4 * np.pi * beta_f[s][n]**(3-s))
-        
-        return abs(inner)**((n-s) / ((n-3)*(3-s))) * m_th(m_csm, r_in, rho, k_o) **((n-s) / ((n-3)*(3-s)))
-    
-    
-    #First integrand of Chatzopoulos Eq. 21. CSM interaction - Checked
-    def integrand1(t, m_ej, m_csm, v_sn, rho, r_in, k_o, x_0, e):
-    
-        alpha_i = (2*n + 6*s - n * s - 15) / (n - s)    
-    
-        p1 = (2*np.pi / (n-s)**3) * g(n, m_ej, v_sn, x_0)**((5-s)/(n-s)) * q(rho, r_in)**((n-5)/(n-s)) * ((n-3)**2) * (n-5) * beta_f[s][n]**(5-s)
-        
-        p2 = A[s][n]**((5-s)/(n-s)) * ((t + t_i(v_sn, r_in))**alpha_i) * np.heaviside(t_fs(v_sn, m_ej, m_csm, r_in, rho, k_o, x_0) - t, 0.5)
-    
-        p3 = 2*np.pi * ((A[s][n] * g(n, m_ej, v_sn, x_0))/ q(rho, r_in))**((5-n)/(n-s)) * beta_r[s][n]**(5-n) * g(n, m_ej, v_sn, x_0) * ((3-s)/(n-s))**3
-    
-        p4 = ((t + t_i(v_sn, r_in))**alpha_i) * np.heaviside(t_rs(v_sn, m_ej, r_in, rho, x_0) - t, 0.5)
-    
-        retarr = []
-        for i in range(len((p1 * p2 + p3 * p4))):
-            if (p1 * p2 + p3 * p4)[i] == 0:
-                retarr.append(0.0)
-            else:
-                retarr.append(e * np.exp(t[i]/t_d(m_th(m_csm, r_in, rho, k_o), r_in, rho, k_o)) * (p1 * p2 + p3 * p4)[i])
-        return retarr
-    
-    
-    #2nd Integral of Chatzopoulos Eq. 21 - Ni-Co Decay - Checked
-    def integrand2(z, m_ni, m_ej, m_csm, r_in, rho, k_o):
-    
-        p1 = (e_ni - e_co) * np.exp(-z/t_ni)
-        
-        p2 = e_co * (np.exp(-z/t_co))
-    
-        return np.exp(z/t_d(m_th(m_csm, r_in, rho, k_o) + m_ej, r_in, rho, k_o)) * m_ni * (p1 + p2)
-    
-    #Chatzopoulos Eq. 21 - Checked
-    def model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0):
-        
-        m_ej = m_ej * s_m
-        m_csm = m_csm * s_m
-        m_ni = m_ni * s_m
-        v_sn = v_sn * 1e8
-        r_in = r_in * 1e14
-        rho = rho * 1e-12
-        
-        t_d1 = t_d(m_th(m_csm, r_in, rho, k_o), r_in, rho, k_o)
-        t_d2 = t_d(m_th(m_csm, r_in, rho, k_o) + m_ej, r_in, rho, k_o)
-
-        t = (t - t_0)*3600*24
-        dt = t/1000
-        #print('t: ', t)
-        tt = np.arange(0, t, dt)
-        arr1 = integrand1(tt, m_ej, m_csm, v_sn, rho, r_in, k_o, x_0, e)
-        arr2 = integrand2(tt, m_ni, m_ej, m_csm, r_in, rho, k_o)
-        return (np.exp(-t/t_d1) / t_d1) * np.trapz(arr1, dx=dt, axis=-1) + (np.exp(-t/t_d2) / t_d2) * np.trapz(arr2, dx=dt, axis=-1)
-    
-    #Manual vectorization of model (np.traps does not like arrays...)
-    def vec_model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0):
-            
-        f = lambda s: model(s, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0)
-        vec_model = list(map(f, t))
-        return vec_model
     #-------------------------------------------------------------
     #Scipy Curvefit
     import scipy.optimize as opt
     times = np.linspace(t_prior[0][0], t[-1], 100)
     print('Starting Scipy Curvefit...')
-    out_mean, out_var = opt.curve_fit(vec_model, t, y, bounds=priors)
+    out_mean, out_var = opt.curve_fit(mdl.RDCSM_model, t, y, bounds=priors)
     print('Scipy Curvefit Success')
 
     sfig = plt.figure(dpi=1200)
@@ -615,7 +440,7 @@ def RDCSM_fit_mcmc(t, y, yerr, t_prior, n, delt, s=0, save_to='',
     for i in range(len(params)):
         print(params[i] + ': ', out_mean[i])
     
-    mod = vec_model(times, out_mean[0], out_mean[1], out_mean[2], out_mean[3], out_mean[4], out_mean[5], out_mean[6], out_mean[7], out_mean[8], out_mean[9])
+    mod = mdl.RDCSM_model(times, out_mean[0], out_mean[1], out_mean[2], out_mean[3], out_mean[4], out_mean[5], out_mean[6], out_mean[7], out_mean[8], out_mean[9])
     plt.ylim(bottom=0)
     plt.plot(times, mod)
     
@@ -624,7 +449,7 @@ def RDCSM_fit_mcmc(t, y, yerr, t_prior, n, delt, s=0, save_to='',
 
     def lnlike(theta, t, y, yerr):
         v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0 = theta
-        model = vec_model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0)
+        model = mdl.RDCSM_model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0)
         likelihood =  -0.5 * np.sum(np.log(2 * np.pi * yerr ** 2) + ((y - model) / yerr) ** 2)
         if np.isnan(likelihood):
             return -np.inf
@@ -684,7 +509,7 @@ def RDCSM_fit_mcmc(t, y, yerr, t_prior, n, delt, s=0, save_to='',
 
             samples = sampler.flatchain
             for theta in samples[np.random.randint(len(samples), size=100)]:
-                plt.plot(times, vec_model(times, theta[0], theta[1], theta[2], theta[3], theta[4],
+                plt.plot(times, mdl.RDCSM_model(times, theta[0], theta[1], theta[2], theta[3], theta[4],
                                           theta[5], theta[6], theta[7], theta[8], theta[9]),
                          color="r", alpha=0.1)
             print(theta)
@@ -723,54 +548,10 @@ def RD_CSM_NS(t, y, yerr, t_prior, n, delt, s=0, save_to='',
               (12, 20, 20, 20, 50, 20, 1, 1, 1)),
                owarnings=False, qs=5):
     
-    import scipy.constants as cst
-    import warnings 
     if not owarnings:
         warnings.filterwarnings("ignore", category=RuntimeWarning)
     #----------------------------------------------------------------
     #GLOBAL VARIABLES
-    
-    beta_f = { 0: {6: 1.256, 7: 1.181, 
-                   8: 1.154, 9: 1.140,
-                   10: 1.131, 12: 1.121,
-                   14: 1.116       
-                   },  # 1982 (Source 3)
-               2: {6: 1.377, 7: 1.299, 
-                   8: 1.267, 9: 1.250,
-                   10: 1.239, 12: 1.226,
-                   14: 1.218       
-                   }
-              }
-    
-    beta_r = {0: {6: 0.906, 7: 0.935,
-                 8: 0.950, 9: 0.960,
-                 10: 0.966, 12: 0.974,
-                 14: 0.979       
-                 }, # 1982 (Source 3)
-              2: {6: 0.958, 7: 0.970,
-                 8: 0.976, 9: 0.981,
-                 10: 0.984, 12: 0.987,
-                 14: 0.990       
-                 }
-              }
-    
-    A = {0: {6: 2.4, 7: 1.2,
-             8: 0.71, 9: 0.47,
-             10: 0.33, 12: 0.19,
-             14: 0.12      
-             }, # 1982 (Source 3)
-         2: {6: 0.62, 7: 27,
-             8: 0.15, 9: 0.096,
-             10: 0.067, 12: 0.038,
-             14: 0.025      
-             }
-         }
-    
-    e_co = 6.78e9
-    e_ni = 3.9e10 
-    t_ni = 8.77*3600*24    #decay time of Ni56(s) ref at asassn14
-    t_co = 111.3*3600*24   #decay time of Ni56(s) ref at asassn14
-    s_m = 1.989e33  #solar mass in grams
     
     params = ['v_sn', 'm_ej', 'm_ni', 'm_csm', 'rho', 'r_in', 'e','x_0', 'k_o', 't_0']
     #-------------------------------------------------------------
@@ -786,146 +567,13 @@ def RD_CSM_NS(t, y, yerr, t_prior, n, delt, s=0, save_to='',
     prihigh = priors[1] + t_prior[1]
     priors = (prilow, prihigh)
     
-    #---------------------------------------------------------------
-    #MODEL SETUP
-    
-    #See Eq. 4 in Liu - Checked
-    def q(rho, r_in):
-        return rho * (r_in ** s)
-    
-    #See Eq. 3 in Liu - Checked
-    def E_sn(m_ej, v_sn, x_0):
-        return (((3-delt)*(n-3)) / ((2*(5-delt)*(n-5)))) * m_ej * (x_0 * v_sn)**2
-    
-    #See Eq. 2 in Liu - Checked
-    def g(n, m_ej, v_sn, x_0):
-        return (1/(4*np.pi*(n-delt))) * ((2*(5-delt)*(n-5)*E_sn(m_ej, v_sn, x_0))**((n-3)/2)) / (((3-delt)*(n-3)*m_ej)**((n-5)/2))
-    
-    #t_interaction below Eq.14 Chatzopoulos - Checked
-    def t_i(v_sn, r_in):
-        return r_in / v_sn   
-    
-    #Reverse shock timescale (Eq. 16 Chatzopoulos) - Checked
-    def t_rs(v_sn, m_ej, r_in, rho, x_0):
-        
-        p1 = (v_sn) / (beta_r[s][n] * ((A[s][n] * g(n, m_ej, v_sn, x_0) / q(rho, r_in))**(1/(n-s))))
-        
-        p2 = 1 - ((3-n) * m_ej) / (4 * np.pi * v_sn**(3-n) * g(n, m_ej, v_sn, x_0))
-        
-        return (p1 * p2**(1/(3-n)))**((n-s) / (s-3))
-    
-    
-    """
-    r_out, and r_ph are found by calculating the integrals 16 and 17 in Liu.
-    I assume the star radius is much smaller compared to the CSM radius.
-    thus, m_th_csm is found using eq. 15.
-    
-    One should note that in Chatzopoulos eq. 15, m_csm refers to the optically
-    thick mass, and not the overall mass... (See Eq. 20 and 21, for explanation)
-    Thus, m_csm is calculated using the equations below:
-    """
-    
-    #Eq. 19 Chatzopoulos - Checked
-    def r_out(m_csm, r_in, rho):
-        if s == 0:
-            return (r_in**3 + (3*m_csm) / (4 *np.pi * rho))**(1/3)
-        elif s == 2:
-            return (m_csm / (4 * np.pi * q(rho, r_in))) + r_in
-    
-    #Eq. 18 Chatzopoulos - Checked
-    def r_ph(m_csm, r_in, rho, k_o):
-        if s == 0:
-            return r_out(m_csm, r_in, rho) + 2/(3 * k_o * q(rho, r_in))
-        elif s == 2:
-            return ((1/r_out(m_csm, r_in, rho)) - (2 / (3 * k_o * q(rho, r_in)))) ** (-1)
-            
-    #Eq. 17 Chatzopoulos - Checked
-    def m_th(m_csm, r_in, rho, k_o):
-        if s == 0:
-            return (4 * np.pi * q(rho, r_in) / 3) * ((r_ph(m_csm, r_in, rho, k_o)**3) - r_in**3)
-        elif s == 2:
-            return (4 * np.pi * q(rho, r_in)) * (r_ph(m_csm, r_in, rho, k_o) - r_in)
-        
-    
-    #Calculated Via liu Eq. 20 or/and below Eq. 20 Chatzopoulos - Checked
-    def t_d(m, r_in, rho, k_o):
-        beta = 4 * (np.pi**3) / 9
-        return (k_o * m) / (beta * cst.c*100 * r_ph(m, r_in, rho, k_o))
-    
-    #Forward shock timescale (Eq. 14 Liu) - Checked
-    def t_fs(v_sn, m_ej, m_csm, r_in, rho, k_o, x_0):
-    
-        inner = ((3-s) * q(rho, r_in)**((3-n)/(n - s)) * (A[s][n] * g(n, m_ej, v_sn, x_0))**((s-3)/(n-s))) / (4 * np.pi * beta_f[s][n]**(3-s))
-        
-        return abs(inner)**((n-s) / ((n-3)*(3-s))) * m_th(m_csm, r_in, rho, k_o) **((n-s) / ((n-3)*(3-s)))
-    
-    
-    #First integrand of Chatzopoulos Eq. 21. CSM interaction - Checked
-    def integrand1(t, m_ej, m_csm, v_sn, rho, r_in, k_o, x_0, e):
-    
-        alpha_i = (2*n + 6*s - n * s - 15) / (n - s)    
-    
-        p1 = (2*np.pi / (n-s)**3) * g(n, m_ej, v_sn, x_0)**((5-s)/(n-s)) * q(rho, r_in)**((n-5)/(n-s)) * ((n-3)**2) * (n-5) * beta_f[s][n]**(5-s)
-        
-        p2 = A[s][n]**((5-s)/(n-s)) * ((t + t_i(v_sn, r_in))**alpha_i) * np.heaviside(t_fs(v_sn, m_ej, m_csm, r_in, rho, k_o, x_0) - t, 0.5)
-    
-        p3 = 2*np.pi * ((A[s][n] * g(n, m_ej, v_sn, x_0))/ q(rho, r_in))**((5-n)/(n-s)) * beta_r[s][n]**(5-n) * g(n, m_ej, v_sn, x_0) * ((3-s)/(n-s))**3
-    
-        p4 = ((t + t_i(v_sn, r_in))**alpha_i) * np.heaviside(t_rs(v_sn, m_ej, r_in, rho, x_0) - t, 0.5)
-    
-        retarr = []
-        for i in range(len((p1 * p2 + p3 * p4))):
-            if (p1 * p2 + p3 * p4)[i] == 0:
-                retarr.append(0.0)
-            else:
-                retarr.append(e * np.exp(t[i]/t_d(m_th(m_csm, r_in, rho, k_o), r_in, rho, k_o)) * (p1 * p2 + p3 * p4)[i])
-        return retarr
-    
-    
-    #2nd Integral of Chatzopoulos Eq. 21 - Ni-Co Decay - Checked
-    def integrand2(z, m_ni, m_ej, m_csm, r_in, rho, k_o):
-    
-        p1 = (e_ni - e_co) * np.exp(-z/t_ni)
-        
-        p2 = e_co * (np.exp(-z/t_co))
-    
-        return np.exp(z/t_d(m_th(m_csm, r_in, rho, k_o) + m_ej, r_in, rho, k_o)) * m_ni * (p1 + p2)
-    
-    #Chatzopoulos Eq. 21 - Checked
-    def model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0):
-        
-        m_ej = m_ej * s_m
-        m_csm = m_csm * s_m
-        m_ni = m_ni * s_m
-        v_sn = v_sn * 1e8
-        r_in = r_in * 1e14
-        rho = rho * 1e-12
-        
-        t_d1 = t_d(m_th(m_csm, r_in, rho, k_o), r_in, rho, k_o)
-        t_d2 = t_d(m_th(m_csm, r_in, rho, k_o) + m_ej, r_in, rho, k_o)
-
-        t = (t - t_0)*3600*24
-        dt = t/1000
-        #print('t: ', t)
-        tt = np.arange(0, t, dt)
-        arr1 = integrand1(tt, m_ej, m_csm, v_sn, rho, r_in, k_o, x_0, e)
-        arr2 = integrand2(tt, m_ni, m_ej, m_csm, r_in, rho, k_o)
-        return (np.exp(-t/t_d1) / t_d1) * np.trapz(arr1, dx=dt, axis=-1) + (np.exp(-t/t_d2) / t_d2) * np.trapz(arr2, dx=dt, axis=-1)
- 
-    #Manual vectorization of model (np.traps does not like arrays...)
-    def vec_model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0):
-            
-        f = lambda s: model(s, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0)
-        vec_model = list(map(f, t))
-        return vec_model
-
     #-------------------------------------------------------------
     #Scipy Curvefit
     
     import scipy.optimize as opt
     times = np.linspace(t_prior[0][0], t[-1], 100)
     print('Starting Scipy Curvefit...')
-    out_mean, out_var = opt.curve_fit(vec_model, t, y, bounds=priors)
+    out_mean, out_var = opt.curve_fit(mdl.RDCSM_model, t, y, bounds=priors)
     print('Scipy Curvefit Success')
 
     sfig = plt.figure(dpi=1200)
@@ -935,7 +583,7 @@ def RD_CSM_NS(t, y, yerr, t_prior, n, delt, s=0, save_to='',
     for i in range(len(params)):
         print(params[i] + ': ', round(out_mean[i], 3))
     
-    mod = vec_model(times, out_mean[0], out_mean[1], out_mean[2], out_mean[3], out_mean[4], out_mean[5], out_mean[6], out_mean[7], out_mean[8], out_mean[9])
+    mod = mdl.RDCSM_model(times, out_mean[0], out_mean[1], out_mean[2], out_mean[3], out_mean[4], out_mean[5], out_mean[6], out_mean[7], out_mean[8], out_mean[9])
     ax.set_ylim(bottom=0)
     ax.plot(times, mod)
     
@@ -957,7 +605,7 @@ def RD_CSM_NS(t, y, yerr, t_prior, n, delt, s=0, save_to='',
 
     def lnlike(theta):
         v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0 = theta
-        model = vec_model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0)
+        model = mdl.RDCSM_model(t, v_sn, m_ej, m_ni, m_csm, rho, r_in, e, x_0, k_o, t_0)
         likelihood =  -0.5 * np.sum(np.log(2 * np.pi * yerr ** 2) + ((y - model) / yerr) ** 2)
         #print('preprint')
         if np.isnan(likelihood):
@@ -1013,7 +661,7 @@ def RD_CSM_NS(t, y, yerr, t_prior, n, delt, s=0, save_to='',
     cfig, caxes = dyplot.cornerplot(results, color='slategray', show_titles=True,
                                       labels=labels, quantiles=[0.16, 0.5, 0.84])
     #Plot the Curve of the mean.
-    ys = vec_model(times, *mean)
+    ys = mdl.RDCSM_model(times, *mean)
     ax.plot(times, ys, c='navy')
     ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
     ax.set_xlabel('Days from Peak')
