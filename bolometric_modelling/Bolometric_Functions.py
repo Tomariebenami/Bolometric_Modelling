@@ -1,8 +1,14 @@
+"""
+Main Structure of the bolometric alanysis module
+"""
+
 import pandas as pd
-from matplotlib import pyplot as plt
 import numpy as np
 import scipy as sp
 import math as m
+
+from astropy.table import Table
+from matplotlib import pyplot as plt
 
 
 def convert_to_erg_s(blackbody_data):
@@ -87,7 +93,6 @@ def find_extinction(ra, dec):
 
 
 def create_lc(path, redshift):
-    from astropy.table import Table
     from lightcurve_fitting.lightcurve import LC
     t = Table.read(path,format='ascii')
     #print(t)

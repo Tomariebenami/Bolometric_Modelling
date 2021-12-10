@@ -6,6 +6,7 @@ Author: Tom A. Ben-Ami
 from matplotlib import pyplot as plt
 import numpy as np
 import math as m
+#from models import RDCSM_model, RD_model
 
 def plot_temp(handle, data, label, c='k', marker='o', alpha=0.6, log=False, xlabel=True):
     
@@ -109,3 +110,14 @@ def plot_lum(handle, data, label, c='k', marker='o', alpha=0.6, log=False,
     if xlabel:
         handle.set_xlabel('Rest-frame days relative to peak')
     handle.set_title('Bolometric Luminosity', fontsize=14)
+    
+    
+def sampleplot_NS(model, times, samples, weights, handle, c='crimson'):
+    for theta in samples[np.random.choice(len(samples), 100, p=weights)]:
+        handle.plot(times, model(times, *theta),
+                 color=c, alpha=0.1)
+    #print(theta)
+    handle.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+    handle.set_xlabel('Days from Peak')
+    handle.set_ylabel('Luminosity')
+    handle.set_yscale('log')
