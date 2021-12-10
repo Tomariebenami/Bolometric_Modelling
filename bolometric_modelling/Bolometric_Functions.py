@@ -9,7 +9,7 @@ import math as m
 
 from astropy.table import Table
 from matplotlib import pyplot as plt
-
+import models as mdl
 
 def convert_to_erg_s(blackbody_data):
     blackbody_data['Lum'] = blackbody_data['Lum'] * 1e7
@@ -301,75 +301,14 @@ def prep_data_model(path, cutoff=0):
     return t, y, yerr
 
 
-def RD_fit(t, y, yerr, t_prior, save_to='', priors=((0.001, 0.001, 0.01, 1e-5),(20, 20, 10, 1)),
+def RD_fit_mcmc(t, y, yerr, t_prior, save_to='', priors=((0.001, 0.001, 0.01, 1e-5),(20, 20, 10, 1)),
            niter=5000, nwalkers=100, owarnings=False):
     
-    
-    import scipy.constants as cst
-    import warnings 
-    if not owarnings:
-        warnings.filterwarnings("ignore", category=RuntimeWarning)
-    #-----------------------------------------------------------
-    #GLOBAL FUNCTION VARIABLES
-    tau_ni = 8.77*3600*24    #decay time of Ni56(s) ref at asassn14
-    tau_co = 111.3*3600*24    #decay time of Co56(s) ref at asassn14
-    e_ni = 3.9e10       #Energy Produced Ni valenti
-    e_co = 6.78e9      #Energy Produced Co valenti ref
-    beta = 13.8
-    #k_o = 0.19
-    k_g = 0.027
-    s_m = 1.989e33  #sun mass in grams
-    #------------------------------------------------------------
-    #Set up priors (full)
-    try:
-        if (not isinstance(t_prior, tuple)) or (not isinstance(t_prior[1], tuple)):
-            raise TypeError
-    except TypeError:
-        print('invalid t_0 prior type given! Please insert as a 2-nested tuple ((t_min,), (t_max,))')
-        return
-    
-    prilow = priors[0] + t_prior[0]
-    prihigh = priors[1] + t_prior[1]
-    priors = (prilow, prihigh)
-    
-    #------------------------------------------------------------
-    #Integrand of first integral, A(z)
-    def integrand1(z, tau_m, tau_ni):
-        y = tau_m / (2 * tau_ni)
-        return 2 * z * np.exp(-2 * z * y + z**2)
 
-    #Integrand of second integral, B(z)
-    def integrand2(z, tau_m, tau_ni, tau_co):
-        y = tau_m / ( 2 * tau_ni)
-        s = (tau_m * (tau_co - tau_ni)) / (2 * tau_co * tau_ni)
-        return 2 * z * np.exp(-2 * z * y + 2 * z * s + z**2)
-    
-    #whole function, constructed.
-    def photospheric(t, m_ni, m_ej, v_ph, k_o, t_0):
-    
-        m_ni = m_ni * s_m
-        m_ej = m_ej * s_m
-        v_ph = v_ph * 1e8
-    
-        t = (t - t_0)*3600*24
-        
-        tau_m = np.sqrt(k_o / (beta * cst.c*100)) * np.sqrt(m_ej / v_ph) * (20/3)**(1/4)
-        x = t / tau_m
-        dt = x / 5000
-        tt = np.arange(0, x, dt)    
-        arr1 = integrand1(tt, tau_m, tau_ni) #array for integration A
-        arr2 = integrand2(tt, tau_m, tau_ni, tau_co)  #array for integration B
-        return m_ni*np.exp(-1 * x**2) * ((e_ni - e_co)*np.trapz(arr1, dx=dt, axis=-1) + e_co*np.trapz(arr2, dx=dt, axis=-1)) * (1 - np.exp(-(3*k_g*m_ej) / (4 * 3.14 * v_ph**2 * t**2)))
-
-    def vec_model(t, m_ni, m_ej, v_ph, k_o, t_0):
-    
-        f = lambda s: photospheric(s, m_ni, m_ej, v_ph, k_o, t_0)
-        vec_model = list(map(f, t))
-        return vec_model
     
     import scipy.optimize as opt
     print('Starting Scipy Curvefit...')
-    out_mean, out_var = opt.curve_fit(vec_model, t, y, bounds=priors,
+    out_mean, out_var = opt.curve_fit(mdl.RD_model, t, y, bounds=priors,
                                               p0 = [1, 1, 1, 0.2, (t_prior[1][0] - 1)], maxfev=8000)
     print('Scipy Curvefit Success')
 
@@ -381,7 +320,7 @@ def RD_fit(t, y, yerr, t_prior, save_to='', priors=((0.001, 0.001, 0.01, 1e-5),(
     #MCMC Fitting
     def lnlike(theta, t, y, yerr):
         m_ni, m_ej, v_ph, k_o, t_0 = theta
-        model = vec_model(t, m_ni, m_ej, v_ph, k_o, t_0)
+        model = mdl.RD_model(t, m_ni, m_ej, v_ph, k_o, t_0)
         #print('Model Val: ', model)
         likelihood =  -0.5 * np.sum(np.log(2 * np.pi * yerr ** 2) + ((y - model) / yerr) ** 2)
         if np.isnan(likelihood):
@@ -431,7 +370,7 @@ def RD_fit(t, y, yerr, t_prior, save_to='', priors=((0.001, 0.001, 0.01, 1e-5),(
             ts = np.linspace(t[0], t[-1], 100)
             samples = sampler.flatchain
             for theta in samples[np.random.randint(len(samples), size=100)]:
-                ax.plot(ts, vec_model(ts, theta[0], theta[1], theta[2], theta[3], theta[4]), color="r", alpha=0.1)
+                ax.plot(ts, mdl.RD_model(ts, theta[0], theta[1], theta[2], theta[3], theta[4]), color="r", alpha=0.1)
             print(theta)
             ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
             ax.set_xlabel('Days from Peak')
@@ -461,7 +400,7 @@ def RD_fit(t, y, yerr, t_prior, save_to='', priors=((0.001, 0.001, 0.01, 1e-5),(
             
     
     
-def RD_CSM_fit(t, y, yerr, t_prior, n, delt, s=0, save_to='',
+def RDCSM_fit_mcmc(t, y, yerr, t_prior, n, delt, s=0, save_to='',
                priors = ((0.01, 1e-3, 1e-3, 1e-3, 0.01, 0.01, 1e-3, 1e-3, 1e-4),
               (12, 20, 20, 20, 50, 20, 1, 1, 1)),
                niter=2500, nwalkers=100, owarnings=False):
