@@ -13,3 +13,4 @@ PyYAML==6.0
 scipy @ file:///C:/ci/scipy_1630606942584/work
 seaborn @ file:///tmp/build/80754af9/seaborn_1608578541026/work
 specutils @ file:///home/conda/feedstock_root/build_artifacts/specutils_1610061760447/work
+pip==19.0.3
