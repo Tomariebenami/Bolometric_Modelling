@@ -1,26 +1,31 @@
 """
 Main Structure of the bolometric lightcurve object
+and bolometric Fit object.
 """
 
+import os
 import pandas as pd
 import numpy as np
 import scipy as sp
 import math as m
 import warnings
+import csv
+import astropy
 
 from lightcurve_fitting.lightcurve import LC
+from lightcurve_fitting.bolometric import calculate_bolometric
 from astropy.table import Table
 from matplotlib import pyplot as plt
-import models as mdl
+from bolometric_modelling import models as mdl
 
 
 class Bol_LC(LC):
-    def __init__(self, name, z, ra, dec):
-        LC.__init___(self)
-        self.z = z
-        self.coords = (ra, dec)        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.z = None
+        self.coords = (None, None) #(ra, dec)        
         self.filters = None
-        self.sn = name
+        self.SN = None
         self.bolometric_data = dict()
 
     
@@ -137,47 +142,56 @@ class Bol_LC(LC):
     def find_extinction(self):
         
         from astroquery.irsa_dust import IrsaDust
-        #import astropy.units as u
         
         ra = self.coords[0].replace(':', ' ')
         dec = self.coords[1].replace(':', ' ')
         coords = ra + ' ' + dec    
         t = IrsaDust.get_extinction_table(coords)
         types = ['CTIO', 'SDSS', 'UKIR']
-    
-        filt= dict()
+        
+        filt = dict()
         for i in t:
             if i['Filter_name'][0:4] in types:
                 filt[i['Filter_name'][-1]] = i['A_SandF']
-    
+                
         self.filters = filt
+        return
 
     @classmethod
-    def read(cls, path, format='ascii', **kwargs):
+    def read(cls, filepath, format='ascii', fill_values=None, **kwargs):
         
-        t = Table.read(path,format='ascii')
+        t = Table.read(filepath,format=format)
+        #print(t)
         try:
             t['Error'].name = 'dmag'
         except KeyError:
-            t['error'].name = 'dmag'
-        t.write(path.replace('.txt','_pipe.txt'),format='ascii',overwrite=True,delimiter=' ')
-        path = path.replace('.txt','_pipe.txt')
+            try:
+                t['error'].name = 'dmag'
+            except KeyError:
+                print('Problem finding error column in data!')
+                pass
+        
+        _, file_ext = os.path.splitext(filepath)
+        
+        t.write(filepath.replace(file_ext,'_pipe.txt'),format='ascii', overwrite=True, delimiter=' ')
+        filepath = filepath.replace(file_ext,'_pipe.txt')
         del t
         
-        t = super(Bol_LC, cls).read(path, format=format, **kwargs)
+        t = super(Bol_LC, cls).read(filepath=filepath, format='ascii', fill_values=fill_values, **kwargs)
         return t
+
     
-    @classmethod
-    def bolometric_extract(cls, self, t0, name, outpath1, outpath2):
+    def bolometric_extract(self, t0, outpath1):
     
         from lightcurve_fitting.bolometric import calculate_bolometric
         import astropy.cosmology as cosmo
         from astropy.cosmology import WMAP9 as wmap
     
+        print(self.z)
         self.meta['dm'] = cosmo.wCDM(wmap.H(0),0.27,0.73).distmod(self.z).value #Should Review
         self.meta['extinction'] = self.filters
-    
-        t = super(Bol_LC, cls).calculate_bolometric(self, self.z, outpath1, burnin_steps=300,
+        
+        t = calculate_bolometric(self, self.z, outpath1, burnin_steps=300,
                                                     steps=500, nwalkers=20, res=1)
         t['t_relative_to_peak'] = (t['MJD']) - t0
         
@@ -222,8 +236,24 @@ class Bol_LC(LC):
         bb_data_scipy.to_csv(outpath2 + '\\' + 'blackbody_scipy_' + name + '.csv')
         """
                 
-        return #bb_data_mcmc, bb_data_scipy
+        return 
+    
 
+    def write(self, path=''):
+        
+        try:
+            for f in ['binned_mcmc', 'binned_scipy']:
+                file = path + '/' + 'Bolometric_Data_' + f + '.csv'
+                dats = np.array(self.bolometric_data[f]).transpose
+                np.savetxt(file, dats, delimiter=',')
+        except:
+            pass
+        
+        file_path = path + '/' + 'Bolometric_Data.csv'
+        
+        super().write(file_path, format='csv')
+            
+        return
 
 class bol_fit:
     def __init__(self):
@@ -677,11 +707,3 @@ class bol_fit:
             print('Saving Complete!')
                 
         return results, dsampler
-            
-
-fitt = bol_fit()
-fitt.prep_data_model(path='C:/Users/tomar/OneDrive/Desktop/Bol_model/blackbody_mcmc_ASASSN-14ms.csv')
-
-fitt.time_prior = ((-5,),(-0.5,))
-if __name__ == '__main__':
-    fitt.RD_fit_mcmc()
