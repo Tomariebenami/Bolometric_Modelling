@@ -20,6 +20,23 @@ from bolometric_modelling import models as mdl
 
 
 class Bol_LC(LC):
+    """
+    A broadband and bolomteric light curve,
+    Parent - LC from 'lightcurve_fitting.lightcurve'
+    Grandparent - :class:`astropy.table.Table` a(see ``help(Table)`` for more details)
+    
+
+    Attributes
+    ----------
+    SN : string
+        Name of the Astrnomical Transient of which this object corresponds to.
+    z : float
+        Redshift of Transient.
+    coords : 2-Tuple
+        Coordinates of the event in J2000 - (ra, dec).
+    filters: dict
+        Dictionary of exctinction values for this transient.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.z = None
@@ -30,18 +47,59 @@ class Bol_LC(LC):
 
     
     def __convert_to_erg_s(blackbody_data):
+        """
+        Internal Unit Converter
+
+        Parameters
+        ----------
+        blackbody_data : Table / DataFrame
+            In units of Watts (W)
+
+        Returns
+        -------
+        blackbody_data : Table / Dataframe
+            In units of erg/s
+
+        """
         blackbody_data['Lum'] = blackbody_data['Lum'] * 1e7
         blackbody_data['dLum0'] = blackbody_data['dLum0'] * 1e7
         return blackbody_data
 
 
     def __convert_to_K(blackbody_data):
+        """
+        Internal Unit converter
+
+        Parameters
+        ----------
+        blackbody_data : Table / Dataframe
+            Units in KiloKelvin
+
+        Returns
+        -------
+        blackbody_data : Table / Dataframe
+            Units in Kelvin
+
+        """
         blackbody_data['temp']=blackbody_data['temp']*1000
         blackbody_data['dtemp0']=blackbody_data['dtemp0']*1000
         return blackbody_data
 
 
     def __convert_to_cm(blackbody_data):
+        """
+        Internal Unit Converter 
+
+        Parameters
+        ----------
+        blackbody_data : Table
+            Units - Solar Radii
+        Returns
+        -------
+        blackbody_data : Table
+            Units - cm
+
+        """
         blackbody_data['radius']= blackbody_data['radius']*(6.9634*10**13)
         blackbody_data['dradius0']= blackbody_data['dradius0']*(6.9634*10**13)
         return (blackbody_data)
@@ -158,10 +216,37 @@ class Bol_LC(LC):
         return
 
     @classmethod
-    def read(cls, filepath, format='ascii', fill_values=None, **kwargs):
-        
+    def read(cls, filepath, name, z, ra, dec,
+             format='ascii', fill_values=None, **kwargs):
+        """
+
+        Parameters
+        ----------
+        filepath : string
+            Filepath to document containing lightcurve data
+        name : string
+            Supernova/event Name
+        z : float
+            redshift of event
+        ra : string
+            ra coordinate (J2000). Format - \'hh:mm:ss.ss\'
+        dec : string
+            declination (J2000). Format - \'+hh:mm:ss.ss\'
+        format : string, optional
+            File format type. The default is 'ascii'.
+        fill_values : tuple of strings, optional
+            Specific characters or strings to interchange. The default is None.
+        **kwargs : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        t : Bol-LC
+            Bol-LC object of data given.
+
+        """
         t = Table.read(filepath,format=format)
-        #print(t)
+        
         try:
             t['Error'].name = 'dmag'
         except KeyError:
@@ -178,16 +263,42 @@ class Bol_LC(LC):
         del t
         
         t = super(Bol_LC, cls).read(filepath=filepath, format='ascii', fill_values=fill_values, **kwargs)
+        
+        t.z = z
+        t.coords = (ra, dec)        
+        t.SN = name
+        
         return t
 
-    
+
     def bolometric_extract(self, t0, outpath1):
+        """
+        
+        Parameters
+        ----------
+        t0 : float
+            Photometric Peak date of event (MJD / JD)
+        outpath1 : string
+            Path for saving MCMC plots in calculating
+            the bolometric lightcurve
+            
+        Returns
+        -------
+        None.
+        
+        """
     
         from lightcurve_fitting.bolometric import calculate_bolometric
         import astropy.cosmology as cosmo
         from astropy.cosmology import WMAP9 as wmap
     
-        print(self.z)
+        if self.filters == None:
+            try:
+                self.find_extinction
+            except:
+                print('Unable to find extinction values - Coordinates not provided')
+                pass
+    
         self.meta['dm'] = cosmo.wCDM(wmap.H(0),0.27,0.73).distmod(self.z).value #Should Review
         self.meta['extinction'] = self.filters
         
@@ -227,14 +338,6 @@ class Bol_LC(LC):
         #units and bolometric luminosity
         self.__prep_MCMC()
         self.__prep_scipy()
-    
-        """
-        #converting to csv file
-        bb_data_mcmc = pd.DataFrame.from_dict(bb_data_mcmc)
-        bb_data_mcmc.to_csv(outpath2 + '\\' + 'blackbody_mcmc_' + name + '.csv')
-        bb_data_scipy = pd.DataFrame.from_dict(bb_data_scipy)
-        bb_data_scipy.to_csv(outpath2 + '\\' + 'blackbody_scipy_' + name + '.csv')
-        """
                 
         return 
     
@@ -252,7 +355,8 @@ class Bol_LC(LC):
         file_path = path + '/' + 'Bolometric_Data.csv'
         
         super().write(file_path, format='csv')
-            
+
+        
         return
 
 class bol_fit:
@@ -273,7 +377,7 @@ class bol_fit:
         
         import models as mdl
     
-    #@property
+    
     def prep_data_model(self, data=None, path=None, delimiter=',', cutoff=0):
         
         try:
@@ -534,7 +638,7 @@ class bol_fit:
                     plt.plot(times, mdl.RDCSM_model(times, theta[0], theta[1], theta[2], theta[3], theta[4],
                                               theta[5], theta[6], theta[7], theta[8], theta[9]),
                              color="r", alpha=0.1)
-                print(theta)
+                #print(theta)
                 ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
                 ax.set_xlabel('Days from Peak')
                 ax.set_ylabel('Luminosity')
@@ -707,3 +811,5 @@ class bol_fit:
             print('Saving Complete!')
                 
         return results, dsampler
+
+            

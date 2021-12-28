@@ -8,8 +8,8 @@ import numpy as np
 import math as m
 #from models import RDCSM_model, RD_model
 
+
 def plot_temp(handle, data, label, c='k', marker='o', alpha=0.6, log=False, xlabel=True):
-    
     if len(data) == 3:
         print('scipy!')
         error = data[2]
@@ -121,3 +121,13 @@ def sampleplot_NS(model, times, samples, weights, handle, c='crimson'):
     handle.set_xlabel('Days from Peak')
     handle.set_ylabel('Luminosity')
     handle.set_yscale('log')
+
+def sampleplot_MCMC(model, times, samples, handle, c='crimson'):
+    for theta in samples[np.random.randint(len(samples), size=100)]:
+        plt.plot(times, model(times, *theta),
+                             color="r", alpha=0.1)
+
+    handle.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+    handle.set_xlabel('Days from Peak')
+    handle.set_ylabel('Luminosity')
+
