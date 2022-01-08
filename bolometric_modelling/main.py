@@ -8,7 +8,6 @@ import pickle
 
 from bolometric_modelling.Bolometric_Functions import bol_fit
 
-
 def prompt(ptype, text, error='Invalid input', options = [], limit=[]):
     if ptype == 'choice':
         print(text, options)
@@ -276,9 +275,9 @@ names as th event names.
                                error = 'Please choose a valid path')
     #Map out events and get data
     if args.amount == 'single' and args.name == '':
-        args.name = prompt('str',
+        args.name = [prompt('str',
                            text = 'Please eneter event name',
-                           error = 'Invalid name given')
+                           error = 'Invalid name given')]
     
     elif args.amount == 'multi':
         files = os.listdir(args.path)
@@ -294,12 +293,19 @@ names as th event names.
                             error = 'Invlid path given')
 
     #Create file system in writepath if needed
-    for s in args.name:
-        f_path = os.path.join(args.wpath, s)
+    if args.amount == 'multi':
+        for s in args.name:
+            f_path = os.path.join(args.wpath, s)
+            try:
+                os.mkdir(f_path)
+            #except FileExistsError():
+            #    pass
+            except:
+                pass
+    elif args.amount == 'single':
+        f_path = os.path.join(args.wpath, args.name[0])
         try:
             os.mkdir(f_path)
-        #except FileExistsError():
-        #    pass
         except:
             pass
     #Decide on the model
@@ -345,12 +351,12 @@ Multiple events are passed via the json format.
              """)
     #redshift
         args.r = dict()
-        args.r[args.name] = prompt('float',
+        args.r[args.name[0]] = prompt('float',
                                    text = 'Insert event redshift',
                                    error = 'Invalid redshift inserted')
     #last non det
         args.nd = dict()
-        args.nd[args.name] = prompt('float',
+        args.nd[args.name[0]] = prompt('float',
                                     text = 'Insert event non-det limit',
                                     error = 'Invalid nondet limit inserted')
 
@@ -359,20 +365,20 @@ Multiple events are passed via the json format.
     if args.amount == 'multi':
         paths = [args.path + '/' + f for f in files]
     elif args.amount == 'single':
-        paths = args.path
+        paths = [args.path]
     
     #setup objects
     events = dict()
-    for s in range(len(args.name)):
-        events[args.names[s]] = bol_fit()
-        _, _, _ = events[args.names[s]].prep_data_model(path = paths[s])
+    for s in range(len(paths)):
+        events[args.name[s]] = bol_fit()
+        _, _, _ = events[args.name[s]].prep_data_model(path=paths[s])
 
     #Start fitting!
     #-------------------------------------------------------------
     #Setup time priors
     tpriors = dict()
     for s in args.name:
-        events[s].time_prior = ((args.nd[s] - 2,), 0) 
+        events[s].time_prior = ((args.nd[s] - 2,), (0,)) 
 
       
     
@@ -386,7 +392,7 @@ Multiple events are passed via the json format.
             sn_path = args.wpath + '/' + s
             print('\nNow Fitting: ', s)
             #if __name__ == '__main__':
-            mcmc_RD[s], q_RD[s] = events[s].RD_fit(save_to=sn_path)
+            mcmc_RD[s], q_RD[s] = events[s].RD_fit_mcmc(save_to=sn_path)
 
     #--------------------------------------------------------------
     #RD+CSM Analysis - MCMC
@@ -397,21 +403,21 @@ Multiple events are passed via the json format.
         for s in args.name:
             sn_path = args.wpath + '/' + s
             #if __name__ == '__main__':
-            mcmc_CSM[s], q_CSM[s] = events[s].RD_CSM_fit(save_to=sn_path)
+            mcmc_CSM[s], q_CSM[s] = events[s].RDCSM_fit_mcmc(save_to=sn_path)
     #--------------------------------------------------------------
     #Single SNe - RD - MCMC
     if args.amount == 'single' and args.model == 'RD':
-        sn_path = args.wpath + '/' + args.name
+        sn_path = args.wpath + '/' + args.name[0]
         #if __name__ == '__main__':
-        mcmc_RD, q_RD = events[args.name].RD_fit(save_to=sn_path)
+        mcmc_RD, q_RD = events[args.name[0]].RD_fit_mcmc(save_to=sn_path)
 
     #--------------------------------------------------------------
     #Single SNe - CSM - MCMC
 
     if args.amount == 'single' and args.model == 'RDCSM' and args.algorithm == 'MCMC':
-        sn_path = args.wpath + '/' + args.name
+        sn_path = args.wpath + '/' + args.name[0]
         #if __name__ == '__main__':
-        mcmc_CSM, q_CSM = events[args.name].RD_CSM_fit(n=args.n, delt=args.delta,
+        mcmc_CSM, q_CSM = events[args.name[0]].RDCSM_fit_mcmc(n=args.n, delt=args.delta,
                                                        save_to=sn_path,
                                                        niter=2500, nwalkers=150,
                                                        priors = ((1, 0.1, 1e-4, 1e-4, 0.01, 0.01, 0.1, 0.1, 1e-2),
@@ -420,10 +426,10 @@ Multiple events are passed via the json format.
     #-------------------------------------------------------------
     #Single SNe - CSM - DNS
     if args.amount == 'single' and args.model == 'RDCSM' and args.algorithm == 'DNS':
-        sn_path = args.wpath + '/' + args.name
+        sn_path = args.wpath + '/' + args.name[0]
         print('\nNow Fitting: ', s)
         #if __name__ == '__main__':
-        res2 = events[args.name].RD_CSM_NS(n=args.n, delt=args.delta, s = args.s,
+        res2 = events[args.name[0]].RDCSM_fit_ns(n=args.n, delt=args.delta, s = args.s,
                                            save_to=sn_path, qs = args.cpu,
                                            priors = ((1.0, 0.1, 1e-4, 1e-4, 0.01, 0.01, 0.1, 0.1, 1e-2),
                                                      (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)))
@@ -435,12 +441,19 @@ Multiple events are passed via the json format.
             sn_path = args.wpath2 + '/' + s
             print('\nNow Fitting: ', s)
             #if __name__ == '__main__':
-            res2 = events[s].RD_CSM_NS(n=args.n, delt=args.delta, s = args.s,
+            res2 = events[s].RDCSM_fit_ns(n=args.n, delt=args.delta, s = args.s,
                                                           save_to=sn_path, qs = args.cpu,
                                                           priors = ((1.0, 0.1, 1e-4, 1e-4, 0.01, 0.01, 0.1, 0.1, 1e-2),
                                                                     (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)))
                 
              
     #TODO: Save data using pickle
-    
-    
+"""
+if __name__ == "__main__":
+    args = sys.argv
+    # args[0] = current file
+    # args[1] = function name
+    # args[2:] = function args : (*unpacked)
+    print(args)
+    globals()[args[1]](*args[2:])
+"""

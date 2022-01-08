@@ -16,7 +16,7 @@ from lightcurve_fitting.lightcurve import LC
 from lightcurve_fitting.bolometric import calculate_bolometric
 from astropy.table import Table
 from matplotlib import pyplot as plt
-from bolometric_modelling import models as mdl
+import bolometric_modelling.models as mdl
 
 
 class Bol_LC(LC):
@@ -375,8 +375,6 @@ class bol_fit:
         
         __spec__ = None
         
-        import models as mdl
-    
     
     def prep_data_model(self, data=None, path=None, delimiter=',', cutoff=0):
         
