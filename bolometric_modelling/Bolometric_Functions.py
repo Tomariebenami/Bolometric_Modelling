@@ -4,13 +4,14 @@ and bolometric Fit object.
 """
 
 import os
+#import csv
 import pandas as pd
 import numpy as np
 import scipy as sp
 import math as m
 import warnings
-import csv
 import astropy
+import pickle
 
 from lightcurve_fitting.lightcurve import LC
 from lightcurve_fitting.bolometric import calculate_bolometric
@@ -501,6 +502,7 @@ class bol_fit:
                                     labels=["$M_{Ni}$", "$M_{ej}$", "$v_{ph}$", "$\kappa_{\gamma}$", "$t_{0}$"],
                                     quantiles=[0.16, 0.5, 0.84])
         
+                #del self.RD_mcmc.pool
                 if save_to:
                     print('saving sampler.flatchain...')
                     np.save(save_to + '\\flatchain_RD', sampler.flatchain)
@@ -508,6 +510,10 @@ class bol_fit:
                     fig.savefig(save_to + '\\Cornerplot_RD.pdf', dpi=1200)
                     print('Saving smapler plot...')
                     sfig.savefig(save_to + '\\Sampleplot_RD.pdf', dpi=1200)
+                    #print('saving bol_it object...')
+                    #filehandler = open(save_to + '\\Bolfit.obj',"wb")
+                    #pickle.dump(self, filehandler)
+                    #filehandler.close()
                     print('Saving Complete!')
                 
                 mcmc = []
@@ -656,6 +662,10 @@ class bol_fit:
                     print('Saving Sampleplot...')
                     sfig.savefig(save_to + '\\Sampleplot_RDCSM.pdf', dpi=1200,
                                  bbox_inches='tight')
+                    print('saving bol_it object...')
+                    #filehandler = open(save_to + '\\Bolfit.obj',"wb")
+                    #pickle.dump(self, filehandler)
+                    #filehandler.close()
                     print('Saving Complete!')
     
                 mcmc = []
@@ -806,6 +816,10 @@ class bol_fit:
             print('Saving Sampleplot...')
             sfig.savefig(save_to + '/Sampleplot_RDCSM.pdf', dpi=1200,
                          bbox_inches='tight')
+            print('saving bol_it object...')
+            #filehandler = open(save_to + '\\Bolfit.obj',"wb")
+            #pickle.dump(self, filehandler)
+            #filehandler.close()
             print('Saving Complete!')
                 
         return results, dsampler

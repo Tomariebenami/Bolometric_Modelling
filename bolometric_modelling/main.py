@@ -4,7 +4,7 @@ import sys
 import json
 import numpy as np
 import argparse
-import pickle
+#import pickle
 
 from bolometric_modelling.Bolometric_Functions import bol_fit
 
@@ -74,7 +74,7 @@ def set_parser():
                     #nargs='+',
                     action='store_const',
                     const='single',
-                    help='TODO') #!!!
+                    help='Fit a model to a single event')
     
     g1.add_argument(
                     '--multi',
@@ -83,7 +83,7 @@ def set_parser():
                     #nargs='+',
                     action='store_const',
                     const='multi',
-                    help='TODO')    #!!!
+                    help='Fit a model to multiple events.')
     
     #ask for event name
     parser.add_argument(
@@ -91,7 +91,7 @@ def set_parser():
                     '-N',
                     dest='name',
                     default='',
-                    help='TODO')                  
+                    help='Name(s) of SNe to be fitted.')                  
     
     # Define Path for event or multievent
     parser.add_argument(
@@ -100,7 +100,7 @@ def set_parser():
                     dest='path',
                     default='',
                     #nargs='+',
-                    help='Bolometric lightucurve data path')  
+                    help='Bolometric lightucurve data path.')  
              
     #Ask for writepath
     
@@ -110,9 +110,9 @@ def set_parser():
                     dest='wpath',
                     default='',
                     #nargs='+',
-                    help='The path for writing results')
+                    help='The path for writing results.')
     
-    #!!! Decide on the model
+    #Decide on the model
     
     g2 = parser.add_mutually_exclusive_group()  #Model Group
     
@@ -123,7 +123,7 @@ def set_parser():
                     #nargs='+',
                     action='store_const',
                     const='RD',
-                    help='TODO') #!!!
+                    help='Fit a radioactive decay model.') 
     
     g2.add_argument(
                     '--RDCSM',
@@ -132,7 +132,7 @@ def set_parser():
                     #nargs='+',
                     action='store_const',
                     const='RDCSM',
-                    help='TODO')    #!!!
+                    help='Fit a radioactive decay + circumstellar interaction model.')
     
     #Set up n, delta, s options
     
@@ -142,7 +142,7 @@ def set_parser():
                     dest='n',
                     default=7,
                     type=int,
-                    help='TODO') #!!!
+                    help='degree of ejecta external polynomial.')
     
     parser.add_argument(
                     '--delta',
@@ -150,7 +150,7 @@ def set_parser():
                     dest='delta',
                     default=0,
                     type=int,
-                    help='TODO') #!!!
+                    help='degree of ejecta internal polynomial.')
     
     parser.add_argument(
                     '--poly_s',
@@ -158,7 +158,7 @@ def set_parser():
                     dest='s',
                     default=0,
                     type=int,
-                    help='TODO') #!!!
+                    help='degree of CSM density polynomial.\n s=0 - shell, s=2 - wind')
  
     #Cores
     parser.add_argument(
@@ -167,7 +167,7 @@ def set_parser():
                     dest='cpu',
                     default=int(os.cpu_count() / 2),
                     type=int,
-                    help='TODO') #!!!
+                    help='Number of cores to utilise in NS fit. (Default: half)')
     
     #Choose fit algorithm
     g3 = parser.add_mutually_exclusive_group()  #Model Group
@@ -178,7 +178,7 @@ def set_parser():
                     dest='algorithm',
                     action='store_const',
                     const='MCMC',
-                    help='TODO') #!!!
+                    help='Use an MCMC sampler to fit the model.')
     
     g3.add_argument(
                     '--DNS',
@@ -186,7 +186,7 @@ def set_parser():
                     dest='algorithm',
                     action='store_const',
                     const='DNS',
-                    help='TODO')    #!!!
+                    help='Use a Dynamic Nested Sampler to fit the model.')
        
     #json or manual
     g4 = parser.add_mutually_exclusive_group()  #config Group
@@ -197,7 +197,7 @@ def set_parser():
                     dest='config_set',
                     action='store_const',
                     const='json',
-                    help='TODO') #!!!
+                    help='use a json file to config required values')
     
     g4.add_argument(
                     '--manual',
@@ -205,17 +205,25 @@ def set_parser():
                     dest='config_set',
                     action='store_const',
                     const='manual',
-                    help = 'TODO') #!!!
+                    help = 'Manually configure required fit values')
    
-    #!!! Details for configurations
-                 
+    #Details for configurations
+    
+    parser.add_argument(
+                    '--config',
+                    #'-r',
+                    dest='config',
+                    default=0.0,
+                    type=float,
+                    help='Configuration json file path.')
+    
     parser.add_argument(
                     '--redshift',
                     #'-r',
                     dest='r',
                     default=0.0,
                     type=float,
-                    help='TODO') #!!!
+                    help='Event redshift')
     
     #last non det
     
@@ -225,10 +233,8 @@ def set_parser():
                     dest='nd',
                     default=0.0,
                     type=float,
-                    help='TODO') #!!!
+                    help='Latest non-detection limit')
     
-                 
-    parser.print_help()
     return parser
 
 def main():
@@ -248,6 +254,8 @@ def main():
     print('This function can accept one of multiple bolometric lightcurves\n')
     print('This function accepts already computed bolometric lightcurve,')
     print('and not the original spectral lightcurves\n')
+    
+    #my_parser.print_help()
     
     print("""
 In order to use the multiple event fit option, please supply a
@@ -361,7 +369,6 @@ Multiple events are passed via the json format.
                                     error = 'Invalid nondet limit inserted')
 
     #Read data
-    data = dict()
     if args.amount == 'multi':
         paths = [args.path + '/' + f for f in files]
     elif args.amount == 'single':
@@ -376,7 +383,6 @@ Multiple events are passed via the json format.
     #Start fitting!
     #-------------------------------------------------------------
     #Setup time priors
-    tpriors = dict()
     for s in args.name:
         events[s].time_prior = ((args.nd[s] - 2,), (0,)) 
 
@@ -409,7 +415,7 @@ Multiple events are passed via the json format.
     if args.amount == 'single' and args.model == 'RD':
         sn_path = args.wpath + '/' + args.name[0]
         #if __name__ == '__main__':
-        mcmc_RD, q_RD = events[args.name[0]].RD_fit_mcmc(save_to=sn_path)
+        mcmc_RD, q_RD = events[args.name[0]].RD_fit_mcmc(save_to=sn_path, niter=500)
 
     #--------------------------------------------------------------
     #Single SNe - CSM - MCMC
@@ -419,7 +425,7 @@ Multiple events are passed via the json format.
         #if __name__ == '__main__':
         mcmc_CSM, q_CSM = events[args.name[0]].RDCSM_fit_mcmc(n=args.n, delt=args.delta,
                                                        save_to=sn_path,
-                                                       niter=2500, nwalkers=150,
+                                                       niter=5000, nwalkers=150,
                                                        priors = ((1, 0.1, 1e-4, 1e-4, 0.01, 0.01, 0.1, 0.1, 1e-2),
                                                                  (12, 5, 1, 1, 1, 20, 1, 1, 1)))
 
@@ -447,13 +453,3 @@ Multiple events are passed via the json format.
                                                                     (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)))
                 
              
-    #TODO: Save data using pickle
-"""
-if __name__ == "__main__":
-    args = sys.argv
-    # args[0] = current file
-    # args[1] = function name
-    # args[2:] = function args : (*unpacked)
-    print(args)
-    globals()[args[1]](*args[2:])
-"""
