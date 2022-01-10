@@ -5,7 +5,7 @@ import json
 import numpy as np
 
 from astroquery.irsa_dust import IrsaDust
-from bolometric_modelling.Bolometric_Functions import bol_fit
+from bolometric_modelling.bolometric_lightcurve import bol_fit
 
 def find_extinction(ra, dec):
     
