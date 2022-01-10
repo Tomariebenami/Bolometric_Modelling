@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 #import pickle
 
-from bolometric_modelling.Bolometric_Functions import bol_fit
+from bolometric_modelling.bolometric_lightcurve import bol_fit
 
 def prompt(ptype, text, error='Invalid input', options = [], limit=[]):
     if ptype == 'choice':
