@@ -390,7 +390,7 @@ class bol_fit:
             data = np.genfromtxt(path, delimiter=delimiter)
         
         t = data[1:,2]
-        y = data[1:, 11] * 10e7
+        y = data[1:, 11] * 1e7
         yerr = ((data[1:, 11] + data[1:, 12])/2) * 1e7
     
         if cutoff != 0:
