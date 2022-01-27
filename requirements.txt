@@ -1,15 +1,15 @@
 astropy
-astroquery==0.4.1
-corner==2.2.1
+astroquery >= 0.4.1
+corner >= 2.2.1
 dynesty
-emcee==3.1.0
+emcee >= 3.1.0
 GitPython
 matplotlib
 matplotlib-inline
 numpy
 numpydoc
 pandas
-PyYAML==6.0
+PyYAML >= 6.0
 scipy 
 seaborn 
 specutils 

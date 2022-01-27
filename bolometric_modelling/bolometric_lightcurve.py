@@ -18,6 +18,7 @@ from lightcurve_fitting.bolometric import calculate_bolometric
 from astropy.table import Table
 from matplotlib import pyplot as plt
 import bolometric_modelling.models as mdl
+import bolometric_modelling.utils as utils
 
 
 class Bol_LC(LC):
@@ -47,73 +48,9 @@ class Bol_LC(LC):
         self.bolometric_data = dict()
 
     
-    def __convert_to_erg_s(blackbody_data):
-        """
-        Internal Unit Converter
-
-        Parameters
-        ----------
-        blackbody_data : Table / DataFrame
-            In units of Watts (W)
-
-        Returns
-        -------
-        blackbody_data : Table / Dataframe
-            In units of erg/s
-
-        """
-        blackbody_data['Lum'] = blackbody_data['Lum'] * 1e7
-        blackbody_data['dLum0'] = blackbody_data['dLum0'] * 1e7
-        return blackbody_data
-
-
-    def __convert_to_K(blackbody_data):
-        """
-        Internal Unit converter
-
-        Parameters
-        ----------
-        blackbody_data : Table / Dataframe
-            Units in KiloKelvin
-
-        Returns
-        -------
-        blackbody_data : Table / Dataframe
-            Units in Kelvin
-
-        """
-        blackbody_data['temp']=blackbody_data['temp']*1000
-        blackbody_data['dtemp0']=blackbody_data['dtemp0']*1000
-        return blackbody_data
-
-
-    def __convert_to_cm(blackbody_data):
-        """
-        Internal Unit Converter 
-
-        Parameters
-        ----------
-        blackbody_data : Table
-            Units - Solar Radii
-        Returns
-        -------
-        blackbody_data : Table
-            Units - cm
-
-        """
-        blackbody_data['radius']= blackbody_data['radius']*(6.9634*10**13)
-        blackbody_data['dradius0']= blackbody_data['dradius0']*(6.9634*10**13)
-        return (blackbody_data)
-
-
-    def __calc_bolo(blackbody_data):
-        blackbody_data['Lum']= np.array(4 * (m.pi) * ((blackbody_data['radius'])**2) * (5.6703*10**(-5)) * ((blackbody_data['temp'])**4))
-        blackbody_data['dLum0']= np.array((((8 * (m.pi) * (blackbody_data['radius']) * (5.6703*10**(-5)) * ((blackbody_data['temp'])**4)*(blackbody_data['dradius0']))**2)+((16 * (m.pi) * ((blackbody_data['radius'])**2) * (5.6703*10**(-5)) * ((blackbody_data['temp'])**3)*(blackbody_data['dtemp0']))**2))**0.5)
-        blackbody_data['dLum1']= np.array((((8 * (m.pi) * (blackbody_data['radius']) * (5.6703*10**(-5)) * ((blackbody_data['temp'])**4)*(blackbody_data['dradius1']))**2)+((16 * (m.pi) * ((blackbody_data['radius'])**2) * (5.6703*10**(-5)) * ((blackbody_data['temp'])**3)*(blackbody_data['dtemp1']))**2))**0.5)
-        return blackbody_data
     
     
-    def __prep_MCMC(self, bin_num=1):
+    def prep_MCMC(self, bin_num=1):
         
         #radius and temp units
         self.bolometric_data['mcmc'] = self.__convert_to_K(self.bolometric_data['mcmc'] )
@@ -138,12 +75,12 @@ class Bol_LC(LC):
         return #bb_t_bin, bb_r_bin, bb_l_bin
 
 
-    def __prep_scipy(self, bin_num=1):
+    def prep_scipy(self, bin_num=1):
         
         #radius and temp units
-        self.bolometric_data['scipy']  = self.__convert_to_K(self.bolometric_data['scipy'])
-        self.bolometric_data['scipy'] = self.__convert_to_cm(self.bolometric_data['scipy'])
-        self.bolometric_data['scipy'] = self.__convert_to_erg_s(self.bolometric_data['scipy'])
+        self.bolometric_data['scipy']  = utils.convert_to_K(self.bolometric_data['scipy'])
+        self.bolometric_data['scipy'] = utils.convert_to_cm(self.bolometric_data['scipy'])
+        self.bolometric_data['scipy'] = utils.convert_to_erg_s(self.bolometric_data['scipy'])
         #binning
         bb_t_bin = self.__bin_data(self.bolometric_data['scipy']['t_relative_to_peak'],
                                    self.bolometric_data['scipy']['temp'],
@@ -337,8 +274,8 @@ class Bol_LC(LC):
                                                    'dLum0']]
         
         #units and bolometric luminosity
-        self.__prep_MCMC()
-        self.__prep_scipy()
+        self.prep_MCMC()
+        self.prep_scipy()
                 
         return 
     
@@ -377,21 +314,21 @@ class bol_fit:
         __spec__ = None
         
     
-    def prep_data_model(self, data=None, path=None, delimiter=',', cutoff=0):
+    def prep_data_model(self, b_lc, delimiter=',', cutoff=0):
         
         try:
-            if data == None and path == None:
+            if isinstance(b_lc, Bol_LC):
+                pass    
+            else:
                 raise Exception(1)
         except:
-            print('No data or path given. Terminating')
+            print('Incorrect datatype entered, please enter a Bol_LC object. Terminating')
             raise 
         
-        if isinstance(path, type(None)) == False:
-            data = np.genfromtxt(path, delimiter=delimiter)
-        
-        t = data[1:,2]
-        y = data[1:, 11] * 1e7
-        yerr = ((data[1:, 11] + data[1:, 12])/2) * 1e7
+        b_lc.prep_MCMC(bin_num=1)
+        t = b_lc.bolometric_data['binned_mcmc'][0]
+        y = b_lc.bolometric_data['binned_mcmc'][1]
+        yerr = b_lc.bolometric_data['binned_mcmc'][2]
     
         if cutoff != 0:
             mask = t < cutoff
