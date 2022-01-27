@@ -30,7 +30,6 @@ setuptools.setup(
         "License :: OSI Approved :: GNU License",
         "Operating System :: OS Independent",
     ],
-    #package_dir={"": "src"},
     packages=setuptools.find_packages(exclude=['docs', 'tests']),
     python_requires=">=3.6",
     install_requires=requirements,
