@@ -1,7 +1,17 @@
+import path
 import setuptools
+
+
+here = path.abspath(path.dirname(__file__))
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
+
+with open(path.join(here, 'requirements.txt')) as requirements_file:
+    # Parse requirements.txt, ignoring any commented-out lines.
+    requirements = [line for line in requirements_file.read().splitlines()
+                    if not line.startswith('#')]
+
 
 setuptools.setup(
     name="Bolometric_Modelling",
@@ -20,7 +30,8 @@ setuptools.setup(
         "License :: OSI Approved :: GNU License",
         "Operating System :: OS Independent",
     ],
-    package_dir={"": "src"},
-    packages=setuptools.find_packages(where="src"),
+    #package_dir={"": "src"},
+    packages=setuptools.find_packages(exclude=['docs', 'tests']),
     python_requires=">=3.6",
+    install_requires=requirements,
 )
