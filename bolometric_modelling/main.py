@@ -8,7 +8,7 @@ import argparse
 
 from bolometric_modelling.bolometric_lightcurve import bol_fit
 
-def prompt(ptype, text, error='Invalid input', options = [], limit=[]):
+def prompt(ptype, text, error='Invalid input', options = [], limit=[], length=0):
     if ptype == 'choice':
         print(text, options)
         while True:
@@ -57,8 +57,21 @@ def prompt(ptype, text, error='Invalid input', options = [], limit=[]):
                 return d
             else:
                 print(error)
+    if ptype == 'list':
+        print(text)
+        while True:
+            try:
+                l = list(map(float, input().split()))
+            except:
+                print(error + '1')
+            if len(l) == length:
+                return l
+            else:
+                print(error + '2')
+        
     print('Unknown ptype!')
     return
+
 
 def set_parser():
     parser = argparse.ArgumentParser(prog='bolmod',
@@ -228,14 +241,36 @@ def set_parser():
     #last non det
     
     parser.add_argument(
-                    '--nondet',
-                    #'-nd',
-                    dest='nd',
+                    '--tprior',
+                    '-t',
+                    dest='tprior',
                     default=0.0,
-                    type=float,
+                    nargs='+',
+                    type=list,
                     help='Latest non-detection limit')
     
     return parser
+
+
+def conv_json(filepath, namespace):
+    #!!! Make into a handle instead?
+    f = open(filepath)
+    config = json.load(f)
+    
+    namespace.name = [*config]
+    
+    #redshifts
+    namespace.r = dict()
+    namespace.tprior = dict()
+    for i in namespace.name:
+        namespace.r[i] = config[i]['z']
+    #tpriors
+        upper = config[i]['firstdet']
+        lower = config[i]['nondet']
+        namespace.tprior[i] = [lower, upper]
+        
+    return namespace
+
 
 def main():
 #if True:    
@@ -251,7 +286,7 @@ def main():
           ·▀▀▀▀  ▀█▄▀▪.▀   ▀▀  █▪▀▀▀ ▀█▄▀▪▀▀▀▀▀• 
           """)
     print('Welcome to the bolometric modelling shell control module!\n')
-    print('This function can accept one of multiple bolometric lightcurves\n')
+    print('This function can accept one or multiple bolometric lightcurves\n')
     print('This function accepts already computed bolometric lightcurve,')
     print('and not the original spectral lightcurves\n')
     
@@ -284,15 +319,19 @@ names as th event names.
     #Map out events and get data
     if args.amount == 'single' and args.name == '':
         args.name = [prompt('str',
-                           text = 'Please eneter event name',
+                           text = 'Please enter event name',
                            error = 'Invalid name given')]
+    
     
     elif args.amount == 'multi':
         files = os.listdir(args.path)
+        """
         args.name = []
         for f in files:
             sn, _ = os.path.splitext(f)
             args.name.append(sn)
+        """
+    
         
     #Ask for writepath
     if args.wpath == None or not os.path.exists(args.wpath):
@@ -348,11 +387,11 @@ names as th event names.
         args.config = prompt('file', 
                              text = 'Please eneter cofig file path',
                              error = 'Invalid filepath given')
-    
-        configfile = open(args.config)
-        snes_dat = json.load(configfile)
+        
+        args = conv_json(args.config, args)
+        
                 
-    if args.config_set == 'manual':
+    elif args.config_set == 'manual':
         print("""
 This method only works for a single fit. 
 Multiple events are passed via the json format.
@@ -362,12 +401,13 @@ Multiple events are passed via the json format.
         args.r[args.name[0]] = prompt('float',
                                    text = 'Insert event redshift',
                                    error = 'Invalid redshift inserted')
-    #last non det
-        args.nd = dict()
-        args.nd[args.name[0]] = prompt('float',
-                                    text = 'Insert event non-det limit',
-                                    error = 'Invalid nondet limit inserted')
-
+    #time priors
+        args.tprior = dict()
+        args.tprior[args.name[0]] = prompt('list',
+                                    text = 'Insert event explosion limits (lower upper)',
+                                    error = 'Invalid limits inserted',
+                                    length = 2)
+        
     #Read data
     if args.amount == 'multi':
         paths = [args.path + '/' + f for f in files]
@@ -379,17 +419,17 @@ Multiple events are passed via the json format.
     for s in range(len(paths)):
         events[args.name[s]] = bol_fit()
         _, _, _ = events[args.name[s]].prep_data_model(path=paths[s])
-
+        
     #Start fitting!
-    #-------------------------------------------------------------
+    #%%-------------------------------------------------------------
     #Setup time priors
+    
     for s in args.name:
-        events[s].time_prior = ((args.nd[s] - 2,), (0,)) 
-
-      
+        events[s].time_prior = ((args.tprior[s][0] - 2,), (args.tprior[s][1],)) 
+              
     
     #------------------------------------------------------------
-    #RD Analysis - MCMC
+    #RD Analysis - MCMC - multi
 
     if args.amount == 'multi' and args.model == 'RD':
         mcmc_RD = dict()
@@ -401,7 +441,7 @@ Multiple events are passed via the json format.
             mcmc_RD[s], q_RD[s] = events[s].RD_fit_mcmc(save_to=sn_path)
 
     #--------------------------------------------------------------
-    #RD+CSM Analysis - MCMC
+    #RD+CSM Analysis - MCMC - multi
 
     if args.amount == 'multi' and args.model == 'RDCSM' and args.algorithm == 'MCMC':
         mcmc_CSM = dict()
@@ -411,14 +451,14 @@ Multiple events are passed via the json format.
             #if __name__ == '__main__':
             mcmc_CSM[s], q_CSM[s] = events[s].RDCSM_fit_mcmc(save_to=sn_path)
     #--------------------------------------------------------------
-    #Single SNe - RD - MCMC
+    #RD Analysis - MCMC - single
     if args.amount == 'single' and args.model == 'RD':
         sn_path = args.wpath + '/' + args.name[0]
         #if __name__ == '__main__':
-        mcmc_RD, q_RD = events[args.name[0]].RD_fit_mcmc(save_to=sn_path, niter=500)
+        mcmc_RD, q_RD = events[args.name[0]].RD_fit_mcmc(save_to=sn_path, niter=5000)
 
     #--------------------------------------------------------------
-    #Single SNe - CSM - MCMC
+    #RD+CSM Analysis - MCMC - single
 
     if args.amount == 'single' and args.model == 'RDCSM' and args.algorithm == 'MCMC':
         sn_path = args.wpath + '/' + args.name[0]
@@ -430,7 +470,7 @@ Multiple events are passed via the json format.
                                                                  (12, 5, 1, 1, 1, 20, 1, 1, 1)))
 
     #-------------------------------------------------------------
-    #Single SNe - CSM - DNS
+    #RD+CSM Analysis - DNS - single
     if args.amount == 'single' and args.model == 'RDCSM' and args.algorithm == 'DNS':
         sn_path = args.wpath + '/' + args.name[0]
         print('\nNow Fitting: ', s)
@@ -441,7 +481,7 @@ Multiple events are passed via the json format.
                                                      (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)))
 
     #---------------------------------------------------------------
-    #Multiple SNe - CSM - DNS
+    #RD+CSM Analysis - DNS - multi
     if args.amount == 'multi' and args.model == 'RDCSM' and args.algorithm == 'DNS':
         for s in args.name:
             sn_path = args.wpath2 + '/' + s

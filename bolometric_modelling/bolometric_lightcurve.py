@@ -4,7 +4,6 @@ and bolometric Fit object.
 """
 
 import os
-#import csv
 import pandas as pd
 import numpy as np
 import scipy as sp
@@ -48,28 +47,26 @@ class Bol_LC(LC):
         self.bolometric_data = dict()
 
     
-    
-    
     def prep_MCMC(self, bin_num=1):
         
         #radius and temp units
-        self.bolometric_data['mcmc'] = self.__convert_to_K(self.bolometric_data['mcmc'] )
-        self.bolometric_data['mcmc']  = self.__convert_to_cm(self.bolometric_data['mcmc'] )
+        self.bolometric_data['mcmc'] = utils.convert_to_K(self.bolometric_data['mcmc'] )
+        self.bolometric_data['mcmc']  = utils.convert_to_cm(self.bolometric_data['mcmc'] )
         #calc lum
-        self.bolometric_data['mcmc']  = self.__calc_bolo(self.bolometric_data['mcmc'] )
+        self.bolometric_data['mcmc']  = utils.calc_bolo(self.bolometric_data['mcmc'] )
         #binning
         bb_t_bin = self.__bin_data(self.bolometric_data['mcmc']['t_relative_to_peak'],
                                    self.bolometric_data['mcmc']['temp'],
                                    self.bolometric_data['mcmc']['dtemp0'],
-                                   self.bolometric_data['mcmc']['dtemp1'], bin_num)
+                                   self.bolometric_data['mcmc']['dtemp1'], binsize=bin_num)
         bb_r_bin = self.__bin_data(self.bolometric_data['mcmc']['t_relative_to_peak'],
                                    self.bolometric_data['mcmc']['radius'],
                                    self.bolometric_data['mcmc']['dradius0'],
-                                   self.bolometric_data['mcmc']['dradius1'], bin_num)
+                                   self.bolometric_data['mcmc']['dradius1'], binsize=bin_num)
         bb_l_bin = self.__bin_data(self.bolometric_data['mcmc']['t_relative_to_peak'],
                                    self.bolometric_data['mcmc']['Lum'],
                                    self.bolometric_data['mcmc']['dLum0'],
-                                   self.bolometric_data['mcmc']['dLum1'], bin_num)
+                                   self.bolometric_data['mcmc']['dLum1'], binsize=bin_num)
         
         self.bolometric_data['binned_mcmc'] = (bb_t_bin, bb_r_bin, bb_l_bin)
         return #bb_t_bin, bb_r_bin, bb_l_bin
@@ -96,8 +93,12 @@ class Bol_LC(LC):
         return #bb_t_bin, bb_r_bin, bb_l_bin
 
     
-    def __bin_data(x, y, e0, e1=None ,binsize=1):
+    def __bin_data(self, x, y, e0, e1=None, binsize=1):
         
+        if not isinstance(binsize, int):
+            print('Wrong bin value!\n')
+            print(binsize)
+            return None
         
         if e1 is None:
             e1 = e0
@@ -207,7 +208,16 @@ class Bol_LC(LC):
         t.SN = name
         
         return t
-
+    
+    
+    def processed_read(self, filepath, delimiter=','):
+        
+        df = pd.read_csv(filepath, delimiter=delimiter)
+        
+        #print(df)
+        
+        self.bolometric_data['mcmc'] = df
+        return df
 
     def bolometric_extract(self, t0, outpath1):
         """
@@ -292,11 +302,10 @@ class Bol_LC(LC):
         
         file_path = path + '/' + 'Bolometric_Data.csv'
         
-        super().write(file_path, format='csv')
-
-        
+        super().write(file_path, format='csv') 
         return
-
+    
+    
 class bol_fit:
     def __init__(self):
         #priors and setup
@@ -314,21 +323,30 @@ class bol_fit:
         __spec__ = None
         
     
-    def prep_data_model(self, b_lc, delimiter=',', cutoff=0):
+    def prep_data_model(self, b_lc=None, path=None, format='csv', cutoff=0):
         
-        try:
-            if isinstance(b_lc, Bol_LC):
-                pass    
-            else:
-                raise Exception(1)
-        except:
-            print('Incorrect datatype entered, please enter a Bol_LC object. Terminating')
-            raise 
+        if isinstance(b_lc, Bol_LC):
+            pass
+        elif isinstance(path, str):
+            try:
+                if not os.path.isfile(path):
+                    raise
+            except:
+                print('incorrect data filepath given')
+                raise
+            b_lc = Bol_LC()
+            b_lc.processed_read(filepath=path)
+        else:
+            print('No data or lightcurve given')
+            raise
         
-        b_lc.prep_MCMC(bin_num=1)
-        t = b_lc.bolometric_data['binned_mcmc'][0]
-        y = b_lc.bolometric_data['binned_mcmc'][1]
-        yerr = b_lc.bolometric_data['binned_mcmc'][2]
+        b_lc.prep_MCMC()
+        
+        print('binner: ', type(b_lc.bolometric_data['binned_mcmc'][0][0]))
+        
+        t = b_lc.bolometric_data['binned_mcmc'][2][0]
+        y = b_lc.bolometric_data['binned_mcmc'][2][1]
+        yerr = b_lc.bolometric_data['binned_mcmc'][2][2]
     
         if cutoff != 0:
             mask = t < cutoff
@@ -336,9 +354,11 @@ class bol_fit:
             y = y[mask]
             yerr = yerr[mask]
         
+        print(t)
+        
         self.bol_lc = (t, y, yerr)
         return t, y, yerr
-            
+
 
     def RD_fit_mcmc(self, save_to='', priors=((0.001, 0.001, 0.01, 1e-5),(20, 20, 10, 1)),
                niter=5000, nwalkers=100, owarnings=False):
