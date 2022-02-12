@@ -354,7 +354,7 @@ class bol_fit:
             y = y[mask]
             yerr = yerr[mask]
         
-        print(t)
+        #print(t)
         
         self.bol_lc = (t, y, yerr)
         return t, y, yerr
@@ -730,12 +730,17 @@ class bol_fit:
                                                 pool=Pool(), queue_size=qs,
                                                 sample='rwalk')
         
-        dsampler.run_nested(nlive_init=1000, nlive_batch=1000, maxiter_init=1000)
+        dsampler.run_nested(nlive_init=1000, nlive_batch=1000)  #, maxiter_init=1000, maxbatch=1
         self.CSM_ns = dsampler
         results = dsampler.results
         print('Nested Sampling Complete!')
         from dynesty import plotting as dyplot
         from dynesty import utils as dyfunc
+        
+        if save_to:
+            print('saving bol_it object...')
+            with open(save_to + '/Bolfit.obj',"wb") as f:
+                pickle.dump(self, f)
         
         # Extract sampling results.
         samples = results.samples  # samples
@@ -773,11 +778,15 @@ class bol_fit:
             print('Saving Sampleplot...')
             sfig.savefig(save_to + '/Sampleplot_RDCSM.pdf', dpi=1200,
                          bbox_inches='tight')
-            print('saving bol_it object...')
-            with open(save_to + '/Bolfit.obj',"wb") as f:
-                pickle.dump(self, f)
             print('Saving Complete!')
                 
         return results, dsampler
+    
+    @classmethod
+    def load(cls, filename):
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
 
             
+    #!!! Error analysis - here? divide into optional functions?
+
