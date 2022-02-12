@@ -342,7 +342,7 @@ class bol_fit:
         
         b_lc.prep_MCMC()
         
-        print('binner: ', type(b_lc.bolometric_data['binned_mcmc'][0][0]))
+        #print('binner: ', type(b_lc.bolometric_data['binned_mcmc'][0][0]))
         
         t = b_lc.bolometric_data['binned_mcmc'][2][0]
         y = b_lc.bolometric_data['binned_mcmc'][2][1]
@@ -730,7 +730,7 @@ class bol_fit:
                                                 pool=Pool(), queue_size=qs,
                                                 sample='rwalk')
         
-        dsampler.run_nested(nlive_init=1000, nlive_batch=1000)
+        dsampler.run_nested(nlive_init=1000, nlive_batch=1000, maxiter_init=1000)
         self.CSM_ns = dsampler
         results = dsampler.results
         print('Nested Sampling Complete!')
@@ -774,9 +774,8 @@ class bol_fit:
             sfig.savefig(save_to + '/Sampleplot_RDCSM.pdf', dpi=1200,
                          bbox_inches='tight')
             print('saving bol_it object...')
-            #filehandler = open(save_to + '\\Bolfit.obj',"wb")
-            #pickle.dump(self, filehandler)
-            #filehandler.close()
+            with open(save_to + '/Bolfit.obj',"wb") as f:
+                pickle.dump(self, f)
             print('Saving Complete!')
                 
         return results, dsampler
