@@ -315,7 +315,7 @@ class bol_fit:
         
         self.bol_lc = None
         
-        #results and samplers
+        # sampler results
         self.RD_mcmc = None
         self.CSM_mcmc = None 
         self.CSM_ns = None
@@ -441,12 +441,12 @@ class bol_fit:
                 print('MCMC Analysis complete!')
                 #--------------------------------------------------
                 
-                self.RD_mcmc = sampler
+                self.RD_mcmc = sampler.flatchain
                 
                 
                 #PLOTTING
                 ts = np.linspace(t[0], t[-1], 100)
-                samples = sampler.flatchain
+                samples = self.RD_mcmc
                 for theta in samples[np.random.randint(len(samples), size=100)]:
                     ax.plot(ts, mdl.RD_model(ts, theta[0], theta[1], theta[2], theta[3], theta[4]), color="r", alpha=0.1)
                 print(theta)
@@ -462,7 +462,7 @@ class bol_fit:
                 #del self.RD_mcmc.pool
                 if save_to:
                     print('saving sampler.flatchain...')
-                    np.save(save_to + '\\flatchain_RD', sampler.flatchain)
+                    np.save(save_to + '\\flatchain_RD', self.RD_mcmc)
                     print('Saving Cornerplot...')
                     fig.savefig(save_to + '\\Cornerplot_RD.pdf', dpi=1200)
                     print('Saving smapler plot...')
@@ -637,7 +637,7 @@ class bol_fit:
     def RDCSM_fit_ns(self, n=7, delt=0, s=0, save_to='',
                    priors = ((0.01, 1e-3, 1e-3, 1e-3, 0.01, 0.01, 1e-3, 1e-3, 1e-4),
                   (12, 20, 20, 20, 50, 20, 1, 1, 1)),
-                   owarnings=False, qs=5):
+                   owarnings=False, qs=5, transform='linear'):
         
         if not owarnings:
             warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -683,7 +683,8 @@ class bol_fit:
         
         #----------------------------------------------------------
         #Nested sampling
-    
+        
+        
         def prior_transform(u):
         
             x = np.zeros(len(u))    
@@ -693,6 +694,23 @@ class bol_fit:
     
             #for dependent prior, m_ni 
             x[2] = priors[0][2] + (x[1] - priors[0][2]) * u[2]
+            return x
+        
+        def logprior_transform(u):
+            #flat priors but in log10 space
+            from numpy import log10
+        
+            x = np.zeros(len(u)) 
+            for i in range(len(u) - 1):
+                x[i] = log10(priors[0][i]) + (log10(priors[1][i]) - log10(priors[0][i])) * u[i]
+                x[i] = 10**(x[i])
+                
+            #time prior:
+            x[9] = priors[0][9] + (priors[1][9] - priors[0][9]) * u[9]
+                
+            #dependent prior, m_ni
+            x[2] = log10(priors[0][2]) + (log10(x[1]) - log10(priors[0][2])) * u[2]
+            x[2] = 10**(x[2])
             return x
     
     
@@ -710,7 +728,7 @@ class bol_fit:
     
         
         ndim=len(out_mean)
-        #------------------------------------------------------
+        #---------------------------------------------------------
         #Sampling
         import dynesty
         from pathos.multiprocessing import ProcessingPool as Pool
@@ -719,32 +737,41 @@ class bol_fit:
         print(lnlike(out_mean))
             
         print('\nStarting Nested Sampler (Dynamic)...')
-        sampler = dynesty.NestedSampler(loglikelihood=lnlike,
-                                        prior_transform=prior_transform,
-                                        ndim=ndim, nlive=1000,
-                                        sample='rwalk', pool=Pool(), queue_size=qs)
+        #sampler = dynesty.NestedSampler(loglikelihood=lnlike,
+        #                                prior_transform=prior_transform,
+        #                                ndim=ndim, nlive=1000,
+        #                                sample='rwalk', pool=Pool(), queue_size=qs)
         
-        dsampler = dynesty.DynamicNestedSampler(loglikelihood=lnlike,
-                                                prior_transform=prior_transform,
-                                                ndim=ndim,
-                                                pool=Pool(), queue_size=qs,
-                                                sample='rwalk')
+        if transform == 'log':
+            dsampler = dynesty.DynamicNestedSampler(loglikelihood=lnlike,
+                                                    prior_transform=logprior_transform,
+                                                    ndim=ndim,
+                                                    pool=Pool(), queue_size=qs,
+                                                    sample='rwalk')
+        else:
+            dsampler = dynesty.DynamicNestedSampler(loglikelihood=lnlike,
+                                                    prior_transform=prior_transform,
+                                                    ndim=ndim,
+                                                    pool=Pool(), queue_size=qs,
+                                                    sample='rwalk')
         
-        dsampler.run_nested(nlive_init=1000, nlive_batch=1000)  #, maxiter_init=1000, maxbatch=1
-        self.CSM_ns = dsampler
-        results = dsampler.results
+        dsampler.run_nested(nlive_init=1000, nlive_batch=1500)  
         print('Nested Sampling Complete!')
+        self.CSM_ns = dsampler.results
+        
         from dynesty import plotting as dyplot
         from dynesty import utils as dyfunc
+        
+        #del dsampler
         
         if save_to:
             print('saving bol_it object...')
             with open(save_to + '/Bolfit.obj',"wb") as f:
                 pickle.dump(self, f)
         
-        # Extract sampling results.
-        samples = results.samples  # samples
-        weights = np.exp(results.logwt - results.logz[-1])  # normalized weights
+        # Extract some sampling results.
+        samples = self.CSM_ns.samples  # samples
+        weights = np.exp(self.CSM_ns.logwt - self.CSM_ns.logz[-1])  # normalized weights
         
         mean, cov = dyfunc.mean_and_cov(samples, weights)
         
@@ -753,12 +780,25 @@ class bol_fit:
                           '$r_{in, csm}$', '$\epsilon$','$x_{0}$', '$k_{o}$', "$t_{0}$"]
         print('Plotting...')
         # Plot a summary of the run.
-        rfig, raxes = dyplot.runplot(results)
+        try:
+            rfig, raxes = dyplot.runplot(self.CSM_ns)
+        except:
+            print('Runplot Failed! Passing')
+            pass
         # Plot traces and 1-D marginalized posteriors.
-        tfig, taxes = dyplot.traceplot(results)
+        try:
+            tfig, taxes = dyplot.traceplot(self.CSM_ns)
+        except:
+            print('Traceplot Failed! Passing')
+            pass
         # Plot the 2-D marginalized posteriors cornerplot.
-        cfig, caxes = dyplot.cornerplot(results, color='slategray', show_titles=True,
-                                          labels=labels, quantiles=[0.16, 0.5, 0.84])
+        try:
+            cfig, caxes = dyplot.cornerplot(self.CSM_ns, color='slategray', show_titles=True,
+                                            labels=labels, quantiles=[0.16, 0.5, 0.84])
+            cnr = True
+        except:
+            print('Cornerplot Failed! Passing')
+            cnr = False
         #Plot the Curve of the mean.
         ys = mdl.RDCSM_model(times, *mean)
         ax.plot(times, ys, c='navy')
@@ -773,14 +813,16 @@ class bol_fit:
             np.save(save_to + '/weights', weights)
             np.save(save_to + '/params', mean)
             print('Saving Cornerplots...')
-            cfig.savefig(save_to + '/Cornerplot_RDCSM.pdf', dpi=1200,
-                         bbox_inches='tight')
+            if cnr:
+                cfig.savefig(save_to + '/Cornerplot_RDCSM.pdf', dpi=1200,
+                             bbox_inches='tight')
+            
             print('Saving Sampleplot...')
             sfig.savefig(save_to + '/Sampleplot_RDCSM.pdf', dpi=1200,
                          bbox_inches='tight')
             print('Saving Complete!')
                 
-        return results, dsampler
+        return self.CSM_ns, dsampler
     
     @classmethod
     def load(cls, filename):
@@ -788,5 +830,5 @@ class bol_fit:
             return pickle.load(f)
 
             
-    #!!! Error analysis - here? divide into optional functions?
+    #!!! Error analysis - here (divide into optional functions?)
 

@@ -249,6 +249,27 @@ def set_parser():
                     type=list,
                     help='Latest non-detection limit')
     
+    #flat-log or flat-lin priors
+    g4 = parser.add_mutually_exclusive_group()  #Model Group
+    
+    g4.add_argument(
+                    '--logprior',
+                    '-lnp',
+                    dest='prior_trans',
+                    #nargs='+',
+                    action='store_const',
+                    const='log',
+                    help='Fit using flat priors in log10 space') 
+    
+    g4.add_argument(
+                    '--linprior',
+                    '-lp',
+                    dest='prior_trans',
+                    #nargs='+',
+                    action='store_const',
+                    const='linear',
+                    help='Fit using flat priors in linear space')
+    
     return parser
 
 
@@ -374,7 +395,12 @@ names as th event names.
                                     text = 'Please choose fitting algorithm',
                                     error = 'Invalid algorithm option given',
                                     options = ['MCMC', 'DNS'])
-        
+        if args.algorithm == 'DNS':
+            args.prior_trans = prompt('choice',
+                                      text = 'Please choose flat prior space',
+                                      error = 'Invalid option given',
+                                      options = ['linear', 'log'])
+                                        
     #Details for configurations
     print('Certain values required for the fit may be inserted via a json file')
     print('or manually. Please insert preference below (json/manual)')
@@ -478,7 +504,8 @@ Multiple events are passed via the json format.
         res2 = events[args.name[0]].RDCSM_fit_ns(n=args.n, delt=args.delta, s = args.s,
                                            save_to=sn_path, qs = args.cpu,
                                            priors = ((1.0, 0.1, 1e-4, 1e-4, 0.01, 0.01, 0.1, 0.1, 1e-2),
-                                                     (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)))
+                                                     (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)),
+                                           transform = args.prior_trans)
 
     #---------------------------------------------------------------
     #RD+CSM Analysis - DNS - multi
@@ -490,6 +517,7 @@ Multiple events are passed via the json format.
             res2 = events[s].RDCSM_fit_ns(n=args.n, delt=args.delta, s = args.s,
                                                           save_to=sn_path, qs = args.cpu,
                                                           priors = ((1.0, 0.1, 1e-4, 1e-4, 0.01, 0.01, 0.1, 0.1, 1e-2),
-                                                                    (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)))
+                                                                    (12.0, 5.0, 1.0, 1.6, 1.0, 20.0, 1.0, 1.0, 1.0)),
+                                                          transform = args.prior_trans)
                 
              
