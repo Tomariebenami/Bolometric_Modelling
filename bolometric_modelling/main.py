@@ -442,7 +442,7 @@ Multiple events are passed via the json format.
     
     #setup objects
     events = dict()
-    for s in range(len(paths)):
+    for s in range(len(args.name)):
         events[args.name[s]] = bol_fit()
         _, _, _ = events[args.name[s]].prep_data_model(path=paths[s])
         
@@ -511,7 +511,7 @@ Multiple events are passed via the json format.
     #RD+CSM Analysis - DNS - multi
     if args.amount == 'multi' and args.model == 'RDCSM' and args.algorithm == 'DNS':
         for s in args.name:
-            sn_path = args.wpath2 + '/' + s
+            sn_path = args.wpath + '/' + s
             print('\nNow Fitting: ', s)
             #if __name__ == '__main__':
             res2 = events[s].RDCSM_fit_ns(n=args.n, delt=args.delta, s = args.s,
