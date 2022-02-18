@@ -309,7 +309,7 @@ def main():
     print('Welcome to the bolometric modelling shell control module!\n')
     print('This function can accept one or multiple bolometric lightcurves\n')
     print('This function accepts already computed bolometric lightcurve,')
-    print('and not the original spectral lightcurves\n')
+    print('and not the original spectral lightcurves(Dev. V0.1)\n')
     
     #my_parser.print_help()
     
@@ -360,22 +360,6 @@ names as th event names.
                             text = 'Choose path to save results',
                             error = 'Invlid path given')
 
-    #Create file system in writepath if needed
-    if args.amount == 'multi':
-        for s in args.name:
-            f_path = os.path.join(args.wpath, s)
-            try:
-                os.mkdir(f_path)
-            #except FileExistsError():
-            #    pass
-            except:
-                pass
-    elif args.amount == 'single':
-        f_path = os.path.join(args.wpath, args.name[0])
-        try:
-            os.mkdir(f_path)
-        except:
-            pass
     #Decide on the model
     if args.model == None:
         args.model = prompt('choice',
@@ -434,6 +418,24 @@ Multiple events are passed via the json format.
                                     error = 'Invalid limits inserted',
                                     length = 2)
         
+    #Create file system in writepath
+    if args.amount == 'multi':
+        for s in args.name:
+            f_path = os.path.join(args.wpath, s)
+            try:
+                os.mkdir(f_path)
+            #except FileExistsError():
+            #    pass
+            except:
+                pass
+        print('File System created...')
+    elif args.amount == 'single':
+        f_path = os.path.join(args.wpath, args.name[0])
+        try:
+            os.mkdir(f_path)
+        except:
+            pass
+            
     #Read data
     if args.amount == 'multi':
         paths = [args.path + '/' + f for f in files]
