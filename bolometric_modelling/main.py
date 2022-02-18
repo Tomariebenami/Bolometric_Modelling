@@ -309,7 +309,7 @@ def main():
     print('Welcome to the bolometric modelling shell control module!\n')
     print('This function can accept one or multiple bolometric lightcurves\n')
     print('This function accepts already computed bolometric lightcurve,')
-    print('and not the original spectral lightcurves(Dev. V0.1)\n')
+    print('and not the original spectral lightcurves(Dev. V0.11)\n')
     
     #my_parser.print_help()
     
@@ -374,6 +374,19 @@ names as th event names.
                               error = 'Invalid value given')
             if args.cpu == 0:
                 args.cpu = int(os.cpu_count() / 2)
+            #s, n, delta for model
+            args.n = prompt('int', limit = [2, 12],
+                            text = 'Please enter the out SN ejecta polynomial order (int, n)',
+                            error = 'Invalid Value entered')
+
+            args.delta = prompt('int', limit = [0, 2],
+                            text = 'Please enter the inner SN ejecta polynomial order (int, delta)',
+                            error = 'Invalid Value entered')
+            
+            args.s = prompt('int', limit = [0, 2],
+                            text = 'Please enter wind polynomial order (int, s)',
+                            error = 'Invalid Value entered')
+            
         if args.algorithm == None:
             args.algorithm = prompt('choice',
                                     text = 'Please choose fitting algorithm',
@@ -384,6 +397,7 @@ names as th event names.
                                       text = 'Please choose flat prior space',
                                       error = 'Invalid option given',
                                       options = ['linear', 'log'])
+
                                         
     #Details for configurations
     print('Certain values required for the fit may be inserted via a json file')
