@@ -22,7 +22,10 @@ def prompt(ptype, text, error='Invalid input', options = [], limit=[], length=0)
         while True:
             try:
                 i = int(input())
-                return i
+                if limit[0] <= i <= limit[1]:
+                    return i
+                else:
+                    raise
             except:
                 print(error)
     if ptype == 'float':
@@ -278,7 +281,7 @@ def conv_json(filepath, namespace):
     f = open(filepath)
     config = json.load(f)
     
-    namespace.name = [*config]
+    namespace.name = sorted([*config])
     
     #redshifts
     namespace.r = dict()
@@ -309,7 +312,7 @@ def main():
     print('Welcome to the bolometric modelling shell control module!\n')
     print('This function can accept one or multiple bolometric lightcurves\n')
     print('This function accepts already computed bolometric lightcurve,')
-    print('and not the original spectral lightcurves(Dev. V0.11)\n')
+    print('and not the original spectral lightcurves(Dev. V0.3)\n')
     
     #my_parser.print_help()
     
@@ -345,7 +348,7 @@ names as th event names.
     
     
     elif args.amount == 'multi':
-        files = os.listdir(args.path)
+        files = sorted(os.listdir(args.path))
         """
         args.name = []
         for f in files:
@@ -374,18 +377,18 @@ names as th event names.
                               error = 'Invalid value given')
             if args.cpu == 0:
                 args.cpu = int(os.cpu_count() / 2)
-            #s, n, delta for model
-            args.n = prompt('int', limit = [2, 12],
-                            text = 'Please enter the out SN ejecta polynomial order (int, n)',
-                            error = 'Invalid Value entered')
+        #s, n, delta for model
+        args.n = prompt('int', limit = [2, 12],
+                        text = 'Please enter the out SN ejecta polynomial order (int, n)',
+                        error = 'Invalid Value entered')
 
-            args.delta = prompt('int', limit = [0, 2],
+        args.delta = prompt('int', limit = [0, 2],
                             text = 'Please enter the inner SN ejecta polynomial order (int, delta)',
                             error = 'Invalid Value entered')
             
-            args.s = prompt('int', limit = [0, 2],
-                            text = 'Please enter wind polynomial order (int, s)',
-                            error = 'Invalid Value entered')
+        args.s = prompt('int', limit = [0, 2],
+                        text = 'Please enter wind polynomial order (int, s)',
+                        error = 'Invalid Value entered')
             
         if args.algorithm == None:
             args.algorithm = prompt('choice',
@@ -407,6 +410,7 @@ names as th event names.
                                  text = 'Please choose configuration setup prference',
                                  error = 'Invalid setup chosen',
                                  options = ['json', 'manual'])
+    
     if args.config_set == 'json':
         args.config = prompt('file', 
                              text = 'Please eneter cofig file path',
@@ -458,9 +462,14 @@ Multiple events are passed via the json format.
     
     #setup objects
     events = dict()
-    for s in range(len(args.name)):
-        events[args.name[s]] = bol_fit()
-        _, _, _ = events[args.name[s]].prep_data_model(path=paths[s])
+    for s in args.name:
+        events[s] = bol_fit()
+        for p in paths:
+            if s in p:
+                _ = events[s].prep_data_model(path=p)
+        if events[s].bol_lc == None:
+            print('No Data found for ', s, ', exiting.')
+            return
         
     #Start fitting!
     #%%-------------------------------------------------------------

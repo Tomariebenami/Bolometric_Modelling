@@ -18,6 +18,7 @@ from astropy.table import Table
 from matplotlib import pyplot as plt
 import bolometric_modelling.models as mdl
 import bolometric_modelling.utils as utils
+from dynesty import utils as dyfunc
 
 
 class Bol_LC(LC):
@@ -47,7 +48,7 @@ class Bol_LC(LC):
         self.bolometric_data = dict()
 
     
-    def prep_MCMC(self, bin_num=1):
+    def prep_MCMC(self, bin_num=0):
         
         #radius and temp units
         self.bolometric_data['mcmc'] = utils.convert_to_K(self.bolometric_data['mcmc'] )
@@ -320,6 +321,10 @@ class bol_fit:
         self.CSM_mcmc = None 
         self.CSM_ns = None
         
+        #Nested sampling error values
+        self.kl_div_mean = None
+        self.kl_div_std = None
+        
         __spec__ = None
         
     
@@ -340,6 +345,8 @@ class bol_fit:
             print('No data or lightcurve given')
             raise
         
+        #print('Pre-prep', b_lc.bolometric_data['mcmc'])
+        
         b_lc.prep_MCMC()
         
         #print('binner: ', type(b_lc.bolometric_data['binned_mcmc'][0][0]))
@@ -347,7 +354,11 @@ class bol_fit:
         t = b_lc.bolometric_data['binned_mcmc'][2][0]
         y = b_lc.bolometric_data['binned_mcmc'][2][1]
         yerr = b_lc.bolometric_data['binned_mcmc'][2][2]
-    
+        
+        #print(t)
+        #print(y)
+        #print(yerr)
+        
         if cutoff != 0:
             mask = t < cutoff
             t = t[mask]
@@ -660,7 +671,7 @@ class bol_fit:
         prihigh = priors[1] + t_prior[1]
         priors = (prilow, prihigh)
         
-        #-------------------------------------------------------------
+        #%%-------------------------------------------------------------
         #Scipy Curvefit
         
         import scipy.optimize as opt
@@ -681,7 +692,7 @@ class bol_fit:
         ax.plot(times, mod)
         
         
-        #----------------------------------------------------------
+        #%%----------------------------------------------------------
         #Nested sampling
         
         
@@ -766,7 +777,8 @@ class bol_fit:
         
         if save_to:
             print('saving bol_it object...')
-            with open(save_to + '/Bolfit.obj',"wb") as f:
+            save_to = save_to + '/n' + n + 'd' + delt + 's' + s
+            with open(save_to + '_Bolfit.obj',"wb") as f:
                 pickle.dump(self, f)
         
         # Extract some sampling results.
@@ -809,16 +821,16 @@ class bol_fit:
         
         if save_to:
             print('Saving sampler samples and weights...')
-            np.save(save_to + '/samples', samples)
-            np.save(save_to + '/weights', weights)
-            np.save(save_to + '/params', mean)
+            np.save(save_to + '_samples', samples)
+            np.save(save_to + '_weights', weights)
+            np.save(save_to + '_params', mean)
             print('Saving Cornerplots...')
             if cnr:
-                cfig.savefig(save_to + '/Cornerplot_RDCSM.pdf', dpi=1200,
+                cfig.savefig(save_to + '_Cornerplot_RDCSM.pdf', dpi=1200,
                              bbox_inches='tight')
             
             print('Saving Sampleplot...')
-            sfig.savefig(save_to + '/Sampleplot_RDCSM.pdf', dpi=1200,
+            sfig.savefig(save_to + '_Sampleplot_RDCSM.pdf', dpi=1200,
                          bbox_inches='tight')
             print('Saving Complete!')
                 
@@ -829,6 +841,40 @@ class bol_fit:
         with open(filename, 'rb') as f:
             return pickle.load(f)
 
-            
+    def simulate_uncertainty(self):
+        
+        #ln(evidence) error of combined statistical and sampling uncertainties
+        lnzs = np.zeros((100, len(self.CSM_ns.logvol)))
+        for i in range(100):
+            dres_s = dyfunc.simulate_run(self.CSM_ns)
+            lnzs[i] = np.interp(-self.CSM_ns.logvol, -dres_s.logvol, dres_s.logz)
+        lnzerr = np.std(lnzs, axis=0)
+    
+        return lnzerr
+    
+    def posterior_uncertainty(self, Nrepeat=100):
+        
+        from scipy.stats import gaussian_kde
+        
+        # compute KL divergences
+        klds = []
+        for i in range(Nrepeat):
+            kld = dyfunc.kld_error(self.CSM_ns(), error='simulate')
+            klds.append(kld)
+        
+        # compute KLD kernel density estimate
+        kl_div = [kld[-1] for kld in klds]
+        kde = gaussian_kde(kl_div)
+        
+        self.kl_div_mean, self.kl_div_std = np.mean(kl_div), np.std(kl_div)        
+        
+        return self.kl_div_mean, self.kl_div_std
+        
+        
+        
+        
+
+        
+        
     #!!! Error analysis - here (divide into optional functions?)
 
