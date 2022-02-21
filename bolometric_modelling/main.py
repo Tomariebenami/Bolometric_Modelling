@@ -311,7 +311,7 @@ def main():
           """)
     print('Welcome to the bolometric modelling shell control module!\n')
     print('This function can accept one or multiple bolometric lightcurves\n')
-    print('This function accepts already computed bolometric lightcurve,')
+    print('This function accepts already computed bolometric lightcurves,')
     print('and not the original spectral lightcurves(Dev. V0.3)\n')
     
     #my_parser.print_help()

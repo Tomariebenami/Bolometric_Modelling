@@ -777,7 +777,7 @@ class bol_fit:
         
         if save_to:
             print('saving bol_it object...')
-            save_to = save_to + '/n' + n + 'd' + delt + 's' + s
+            save_to = save_to + '/n' + str(n) + 'd' + str(delt) + 's' + str(s)
             with open(save_to + '_Bolfit.obj',"wb") as f:
                 pickle.dump(self, f)
         
