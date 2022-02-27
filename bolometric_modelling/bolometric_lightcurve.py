@@ -48,7 +48,7 @@ class Bol_LC(LC):
         self.bolometric_data = dict()
 
     
-    def prep_MCMC(self, bin_num=0):
+    def prep_MCMC(self, bin_num=1):
         
         #radius and temp units
         self.bolometric_data['mcmc'] = utils.convert_to_K(self.bolometric_data['mcmc'] )
@@ -676,13 +676,17 @@ class bol_fit:
         
         import scipy.optimize as opt
         times = np.linspace(t_prior[0][0], t[-1], 100)
-        print('Starting Scipy Curvefit...')
+        print('(V0.4) Starting Scipy Curvefit...')
         out_mean, out_var = opt.curve_fit(mdl.RDCSM_model, t, y, bounds=priors)
         print('Scipy Curvefit Success')
-    
-        sfig = plt.figure(dpi=1200)
+        
+        sfig = plt.figure(dpi=600)
         ax = sfig.subplots()
-        ax.scatter(t, y) #Data
+        try:
+            ax.scatter(t, y) #Data
+        except:
+            print('Failed Scipy Plot')
+            pass
     
         for i in range(len(params)):
             print(params[i] + ': ', round(out_mean[i], 3))
