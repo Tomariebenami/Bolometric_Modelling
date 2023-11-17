@@ -15,3 +15,4 @@ seaborn
 specutils 
 pathos
 lightcurve_fitting
+pickle
